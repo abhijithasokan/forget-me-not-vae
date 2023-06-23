@@ -1,0 +1,70 @@
+import torch
+from torch import nn
+
+class VAE(nn.Module):
+    def __init__(self, dim, latent_dim, dtype=torch.float64):
+        super(VAE, self).__init__()
+        self.latent_dim = latent_dim
+        self.dim = dim
+        self.dtype = dtype
+        middle_layer_dim = int((2*dim*latent_dim) ** 0.75) 
+        
+
+        self.encoder = nn.Sequential(
+            nn.Linear(dim, middle_layer_dim, dtype=dtype),
+            nn.ReLU(),
+            nn.Linear(middle_layer_dim, 2*latent_dim, dtype=dtype),  # both mean, (log)variance
+        )
+        
+        self.decoder = nn.Sequential(
+            nn.Linear(latent_dim, middle_layer_dim, dtype=dtype),
+            nn.ReLU(),
+            nn.Linear(middle_layer_dim, dim, dtype=dtype),
+            nn.Sigmoid(),
+        )
+        
+    @staticmethod
+    def reparameterize(mean, log_var):
+        std = torch.exp(0.5 * log_var)    # std = sqrt(exp(log_var))
+        eps = torch.randn_like(std)
+        return mean + eps * std    # equivalent to sampling from N(mean, variance)
+    
+    def forward(self, x, deterministic=False):
+        mean, log_var = self.get_posterir_dist_params(x)
+        if deterministic:
+            z = mean
+        else:
+            z = self.reparameterize(mean, log_var)    # latent_representation
+        
+        reconstruction = self.decoder(z)
+        return reconstruction, mean, log_var
+    
+    def get_posterir_dist_params(self, data):
+        mean_and_variance = self.encoder(data).view(-1, 2, self.latent_dim)
+        mean, log_var = mean_and_variance.permute(1,0,2)
+        return mean, log_var
+    
+    def get_latent_representation(self, data, deterministic=False):
+        mean, log_var = self.get_posterir_dist_params(data)
+        if deterministic:
+            z = mean
+        else:
+            z = self.reparameterize(mean, log_var)    # latent_representation
+        return z
+
+    @classmethod
+    def negative_elbo(cls, x, x_recons, mean, log_var, beta):
+        # The below term corresponds to the Logliklihood term in the VAE loss
+        # bce_loss = nn.functional.binary_cross_entropy(x_recons, x, reduction='sum')
+        # reconn_loss = bce_loss
+        reconn_loss = (x_recons - x).pow(2).sum()
+        
+        # Below is the KL divergence part of the VAE loss 
+        # For eqn, see - https://mr-easy.github.io/2020-04-16-kl-divergence-between-2-gaussian-distributions/
+        kl_div = 0.5 * torch.sum(log_var.exp() - log_var - 1 + mean.pow(2))
+        return reconn_loss + beta*kl_div
+    
+
+    def generate_sample_from_latent_prior(self, num_samples):
+        z = torch.randn(1, num_samples, self.latent_dim, dtype=self.dtype)
+        return self.decoder(z)
