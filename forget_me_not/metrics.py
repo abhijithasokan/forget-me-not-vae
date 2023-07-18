@@ -21,7 +21,7 @@ def compute_negative_log_likelihood(vae_model, dataloader, dim, num_importance_s
         elbo_samples = []
         for _ in range(num_importance_sampling):
             with torch.no_grad():
-                x_recons, mean, log_var = vae_model.forward(x)
+                _, x_recons, mean, log_var = vae_model.forward(x)
             elbo = -VAE.negative_elbo(x, x_recons, mean, log_var, beta=1).item()
             elbo_samples.append(elbo)
         elbo_samples = torch.tensor(elbo_samples)
@@ -63,7 +63,7 @@ def mutual_information(vae_model, dataloader, num_samples):
     for batch in cliped_iter_dataloder(dataloader, num_samples):
         x, _ = batch
         with torch.no_grad():
-            _, mean, log_var = vae_model.forward(x)
+            _, _, mean, log_var = vae_model.forward(x)
         all_mu.append(mean)
         all_logvar.append(log_var)  
 
@@ -83,7 +83,7 @@ def mutual_information(vae_model, dataloader, num_samples):
     z = VAE.reparameterize(all_mu, all_logvar)
     
     # Exapnding dimensions for the broadcasting trick
-    z = z.unsqueeze(1) # shape: (num_samples, 1, dim_z)
+    z = z.unsqueeze(1) # shape: (num_samples, 1, dim_z) # TODO: use the z from the previous step
     all_mu = all_mu.unsqueeze(0) # shape: (1, num_samples, dim_z)
     all_logvar = all_logvar.unsqueeze(0)
     

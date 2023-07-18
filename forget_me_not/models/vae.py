@@ -2,12 +2,12 @@ import torch
 from torch import nn
 
 class VAE(nn.Module):
-    def __init__(self, dim, latent_dim, dtype=torch.float64):
+    def __init__(self, dim: int, hidden_dim: int, latent_dim: int, dtype=torch.float64):
         super(VAE, self).__init__()
         self.latent_dim = latent_dim
         self.dim = dim
         self.dtype = dtype
-        middle_layer_dim = int((2*dim*latent_dim) ** 0.75) 
+        middle_layer_dim = hidden_dim #int((dim*latent_dim) ** 0.5) 
         
 
         self.encoder = nn.Sequential(
@@ -20,7 +20,7 @@ class VAE(nn.Module):
             nn.Linear(latent_dim, middle_layer_dim, dtype=dtype),
             nn.ReLU(),
             nn.Linear(middle_layer_dim, dim, dtype=dtype),
-            nn.Sigmoid(),
+            #nn.Sigmoid(),
         )
         
     @staticmethod
@@ -37,7 +37,7 @@ class VAE(nn.Module):
             z = self.reparameterize(mean, log_var)    # latent_representation
         
         reconstruction = self.decoder(z)
-        return reconstruction, mean, log_var
+        return z, reconstruction, mean, log_var
     
     def get_posterir_dist_params(self, data):
         mean_and_variance = self.encoder(data).view(-1, 2, self.latent_dim)

@@ -1,30 +1,94 @@
 import torch
 from torch import nn
+from torch.nn import functional as F
+import numpy as np
 import pytorch_lightning as pl
 from forget_me_not.models.vae import VAE
 
 
+
+class Losses:
+    def __init__(self, vae_module, loss:str):
+        self.vae_module = vae_module
+        self.loss_func = self.get_loss_function(loss)
+
+    def __call__(self, *args):
+        return self.loss_func(*args)
+        
+    def vanilla_beta_vae_loss(self, batch):
+        x, _ = batch
+        _, x_recons, mean, log_var = self.vae_module.model.forward(x)
+        return VAE.negative_elbo(x, x_recons, mean, log_var, self.vae_module.beta) / x.size(0)
+    
+
+    def _crtic_loss(self, batch, critic_func):
+        x, _ = batch
+        z, x_recons, mean, log_var = self.vae_module.model.forward(x)
+        vanilla_loss = VAE.negative_elbo(x, x_recons, mean, log_var, beta=1.0) / x.size(0)
+        critic_loss = critic_func(mean, log_var, z)
+        return vanilla_loss + self.vae_module.lmbda * critic_loss
+        
+    @staticmethod
+    def _self_critic_loss(mean, log_var, z):
+        num_samples, dim_z = z.shape
+        # Although num_samples = num_latents, we keep the names different for clarity
+        num_latents = num_samples
+
+        # Exapnding dimensions for the broadcasting trick
+        z = z.unsqueeze(1) # shape: (num_latents, 1, dim_z)
+        mean = mean.unsqueeze(0) # shape: (1, num_samples, dim_z)
+        log_var = log_var.unsqueeze(0)
+        
+
+        dev = z - mean # this computes distance of z from each mean. shape: (num_latents, num_samples, dim_z)
+        var = log_var.exp()
+
+        log_densities = -0.5 * (dim_z * np.log(2 * np.pi) + log_var.sum(dim=-1) ) \
+                        -0.5 * ( (dev**2) / var).sum(dim=-1) # shape: (num_latents, num_samples)
+        
+        log_p_z_given_x = log_densities
+
+        labels = torch.arange(num_latents, device=z.device)
+        loss = F.cross_entropy(log_p_z_given_x, labels)
+        return loss
+
+
+    def self_critic_loss(self, batch):
+        return self._crtic_loss(batch, self._self_critic_loss)
+    
+    def get_loss_function(self, loss: str):
+        all_losses = { 
+            'vanilla-beta-vae' : self.vanilla_beta_vae_loss,
+            'self-critic' : self.self_critic_loss,
+        }
+
+        if loss not in all_losses:
+            raise ValueError(f"{loss} isn't a supported loss. Supported losses are - {', '.join(all_losses.keys())}")
+
+        return all_losses[loss]
+
+
+
+
+
 class BetaVAEModule(pl.LightningModule):
-    def __init__(self, vae_model, beta, learning_rate):
+    def __init__(self, vae_model: VAE, loss: str, beta: float, learning_rate: float):
         super().__init__()
         #self.save_hyperparameters()
         self.model = vae_model
         self.learning_rate = learning_rate
         self.beta = beta    
         self.setup_log_ouputs()
+        self.loss_func = Losses(self, loss=loss)
+        # fix this
+        self.lmbda = self.beta 
 
     def setup_log_ouputs(self):
         self.train_step_outputs = []
         self.validation_step_outputs = []
 
-    def compute_loss(self, batch):
-        x, _ = batch
-        x_recons, mean, log_var = self.model.forward(x)
-        return VAE.negative_elbo(x, x_recons, mean, log_var, self.beta) / len(x)
-
-
     def training_step(self, batch, batch_idx):
-        loss = self.compute_loss(batch)     
+        loss = self.loss_func(batch)     
         self.train_step_outputs.append({
             "loss" : loss,
         })
@@ -36,7 +100,7 @@ class BetaVAEModule(pl.LightningModule):
         
 
     def validation_step(self, batch, batch_idx):
-        loss = self.compute_loss(batch) 
+        loss = self.loss_func(batch) 
         self.validation_step_outputs.append({
             "loss" : loss
         })
@@ -65,7 +129,7 @@ def train(model, train_data_loader, val_data_loader, num_epochs=100, accelerator
 
     callbacks = []
     if early_stop:    
-        early_stop_callback = EarlyStopping(monitor="val_loss", patience=3, mode="min")
+        early_stop_callback = EarlyStopping(monitor="val_loss", patience=5, mode="min")
         callbacks.append(early_stop_callback)
 
     logger = TensorBoardLogger('train_logs', 'vae_experiments')

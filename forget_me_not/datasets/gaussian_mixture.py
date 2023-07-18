@@ -12,14 +12,16 @@ class GaussianMixture(Dataset):
             n_samples: int, 
             n_features: int, 
             n_classes: int,
-            variance_range: tuple = (0.5, 1.0), 
+            variance_scale: tuple = (0.5, 1.0), 
+            mean_scale: tuple = (0, 1.0),
             seed:int = 0
         ):
         self.n_samples = n_samples
         self.n_features = n_features
         self.n_classes = n_classes
         self.seed = seed
-        self.variance_range = variance_range
+        self.variance_scale = variance_scale
+        self.mean_scale = mean_scale
         self.data, self.labels = self._generate_data()
 
 
@@ -31,8 +33,12 @@ class GaussianMixture(Dataset):
         labels = []
         
         for class_ind in range(self.n_classes):
-            mean = np.random.randn(self.n_features)
-            cov = np.random.uniform(*self.variance_range)
+            mean_from_std = np.random.randn(self.n_features)
+            normalized_mean = mean_from_std / np.linalg.norm(mean_from_std)
+            scale_corrected_mean = normalized_mean * np.random.uniform(*self.mean_scale)
+            mean = scale_corrected_mean
+
+            cov = np.random.uniform(*self.variance_scale)
             self.means.append(mean)
             self.covs.append(cov)
         
