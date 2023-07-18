@@ -1,5 +1,8 @@
+import numpy as np
 import torch
 from torch import nn
+
+import torch.nn.functional as F
 
 class VAE(nn.Module):
     def __init__(self, dim: int, hidden_dim: int, latent_dim: int, dtype=torch.float64):
@@ -68,3 +71,53 @@ class VAE(nn.Module):
     def generate_sample_from_latent_prior(self, num_samples):
         z = torch.randn(1, num_samples, self.latent_dim, dtype=self.dtype)
         return self.decoder(z)
+    
+
+
+
+
+    
+class CriticNetwork(nn.Module):
+    def __init__(self, dim: int, latent_dim: int, contrast_dim: int, hidden_dim_x: int, hidden_dim_z: int, dtype=torch.float64):
+        super(CriticNetwork, self).__init__()
+
+        self.latent_dim = latent_dim
+        self.dim = dim
+        self.contrast_dim = contrast_dim
+
+        self.x_enc = nn.Sequential(
+            nn.Linear(dim, hidden_dim_x, dtype=dtype),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_x, contrast_dim, dtype=dtype),
+        )
+
+        self.z_enc = nn.Sequential(
+            nn.Linear(latent_dim, hidden_dim_z, dtype=dtype),
+            nn.ReLU(),
+            nn.Linear(hidden_dim_z, contrast_dim, dtype=dtype),
+        )
+
+        self.temperature = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+
+
+    def forward(self, z, x):
+        z_emb = self.z_enc(z)
+        x_emb = self.x_enc(x)
+
+        logits1 = self.temperature * z_emb @ x_emb.t()
+        logits2 = logits1.t()
+        labels = torch.arange(logits1.size(0), device=logits1.device)
+        loss1 = F.cross_entropy(logits1, labels)
+        loss2 = F.cross_entropy(logits2, labels)
+        loss = (loss1 + loss2)/2
+        return loss
+
+
+
+
+
+class VAEWithCriticNetwork(VAE):
+    def __init__(self, critic_model: CriticNetwork, *args, **kwargs):
+        super(VAEWithCriticNetwork, self).__init__(*args, **kwargs)
+        self.critic_model = critic_model
+        

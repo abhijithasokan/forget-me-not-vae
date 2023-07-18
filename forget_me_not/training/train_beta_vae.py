@@ -1,9 +1,12 @@
+from typing import Union
+
+import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
-import numpy as np
 import pytorch_lightning as pl
-from forget_me_not.models.vae import VAE
+
+from forget_me_not.models.vae import VAE, VAEWithCriticNetwork
 
 
 
@@ -21,15 +24,15 @@ class Losses:
         return VAE.negative_elbo(x, x_recons, mean, log_var, self.vae_module.beta) / x.size(0)
     
 
-    def _crtic_loss(self, batch, critic_func):
+    def _critic_loss(self, batch, critic_func):
         x, _ = batch
         z, x_recons, mean, log_var = self.vae_module.model.forward(x)
         vanilla_loss = VAE.negative_elbo(x, x_recons, mean, log_var, beta=1.0) / x.size(0)
-        critic_loss = critic_func(mean, log_var, z)
+        critic_loss = critic_func(z, x, mean, log_var)
         return vanilla_loss + self.vae_module.lmbda * critic_loss
         
-    @staticmethod
-    def _self_critic_loss(mean, log_var, z):
+
+    def _self_critic_loss(self, z, _, mean, log_var):
         num_samples, dim_z = z.shape
         # Although num_samples = num_latents, we keep the names different for clarity
         num_latents = num_samples
@@ -53,13 +56,25 @@ class Losses:
         return loss
 
 
+    def _nn_critic_loss(self, z, x, *args):
+        if not isinstance(self.vae_module.model, VAEWithCriticNetwork):
+            raise ValueError("The model doesn't have a critic network")
+
+        critic_loss = self.vae_module.model.critic_model.forward(z, x)
+        return critic_loss
+
+
     def self_critic_loss(self, batch):
-        return self._crtic_loss(batch, self._self_critic_loss)
+        return self._critic_loss(batch, self._self_critic_loss)
+    
+    def nn_critic_loss(self, batch):
+        return self._critic_loss(batch, self._nn_critic_loss)
     
     def get_loss_function(self, loss: str):
         all_losses = { 
             'vanilla-beta-vae' : self.vanilla_beta_vae_loss,
             'self-critic' : self.self_critic_loss,
+            'nn-critic' : self.nn_critic_loss,
         }
 
         if loss not in all_losses:
@@ -70,9 +85,8 @@ class Losses:
 
 
 
-
 class BetaVAEModule(pl.LightningModule):
-    def __init__(self, vae_model: VAE, loss: str, beta: float, learning_rate: float):
+    def __init__(self, vae_model: Union[VAE, VAEWithCriticNetwork], loss: str, beta: float, learning_rate: float):
         super().__init__()
         #self.save_hyperparameters()
         self.model = vae_model
