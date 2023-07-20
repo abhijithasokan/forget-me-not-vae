@@ -106,6 +106,7 @@ class BetaVAEModule(pl.LightningModule):
         self.train_step_outputs.append({
             "loss" : loss,
         })
+        return loss
 
     def on_train_epoch_end(self):
         avg_loss = torch.stack([x['loss'] for x in self.train_step_outputs]).mean()
@@ -118,6 +119,7 @@ class BetaVAEModule(pl.LightningModule):
         self.validation_step_outputs.append({
             "loss" : loss
         })
+        return loss
     
 
     def on_validation_epoch_end(self):
