@@ -102,7 +102,10 @@ class CriticNetwork(nn.Module):
 
     def forward(self, z, x):
         z_emb = self.z_enc(z)
+        z_emb = z_emb / z_emb.norm(dim=1, keepdim=True)
         x_emb = self.x_enc(x)
+        x_emb = x_emb / x_emb.norm(dim=1, keepdim=True)
+
 
         logits1 = self.temperature * z_emb @ x_emb.t()
         logits2 = logits1.t()
