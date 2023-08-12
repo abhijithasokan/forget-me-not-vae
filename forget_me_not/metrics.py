@@ -106,11 +106,14 @@ def mutual_information(vae_model, dataloader, num_samples):
 
 def compute_density_and_coverage(vae_model, dataloader, num_samples, nearest_k=5):
     vae_model.eval()
-    real_samples = []
+    samples = []
     for batch in cliped_iter_dataloder(dataloader, num_samples):
         x, _ = batch
-        real_samples.append(x)
-    real_samples = torch.cat(real_samples, dim=0)
+        samples.append(x)
+    samples = torch.cat(samples, dim=0)
     with torch.no_grad():
-        generated_samples = vae_model.generate_sample_from_latent_prior(num_samples).squeeze(0)
-    return compute_prdc(real_samples, generated_samples, nearest_k=nearest_k)
+        latent_samples = vae_model.get_latent_representation(samples)
+        generated_samples = vae_model.generate_sample_from_latent_prior(num_samples)
+        latent_of_generated_samples = vae_model.get_latent_representation(generated_samples)
+
+    return compute_prdc(latent_samples, latent_of_generated_samples, nearest_k=nearest_k)

@@ -69,7 +69,8 @@ class VAE(nn.Module):
     
 
     def generate_sample_from_latent_prior(self, num_samples):
-        z = torch.randn(1, num_samples, self.latent_dim, dtype=self.dtype)
+        # when prior is a normal distribution with mean 0 and variance 1 
+        z = torch.randn(num_samples, self.latent_dim, dtype=self.dtype)
         return self.decoder(z)
     
 
