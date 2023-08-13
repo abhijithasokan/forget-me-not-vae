@@ -1,3 +1,4 @@
+import os
 from pytorch_lightning.utilities.types import EVAL_DATALOADERS
 from torch.utils.data import Dataset
 import numpy as np
@@ -67,16 +68,19 @@ class GaussianMixture(Dataset):
     def plot(self):
         return self.plot_helper(self.data, self.labels)
 
-    def plot_filtered(self, filtered_inds):
-        return self.plot_helper(self.data[filtered_inds], self.labels[filtered_inds])
+    def plot_filtered(self, filtered_inds, save_fig_path: str = None):
+        return self.plot_helper(self.data[filtered_inds], self.labels[filtered_inds], save_fig_path)
 
     @staticmethod
-    def plot_helper(data, labels):
+    def plot_helper(data, labels, save_fig_path: str = None):
         if data.shape[1] > 2:
             data = PCA(n_components=2).fit_transform(data)
         import matplotlib.pyplot as plt
         plt.scatter(data[:, 0], data[:, 1], c=labels.unsqueeze(1), marker='.')
-        plt.show()
+        if save_fig_path is not None:
+            plt.savefig(save_fig_path)
+        else:
+            plt.show()
 
 
 
@@ -113,14 +117,17 @@ class GaussianMixtureDataModule(LightningDataModule):
         batch_size = batch_size if batch_size is not None else len(self.eval_ds)
         return DataLoader(self.eval_ds, batch_size=batch_size, shuffle=False)
 
-    def plot_train(self):
-        self.ds.plot_filtered(self.train_ds.indices)
+    def plot_train(self, report_dir: str = None):
+        fig_save_path = None if report_dir is None else os.path.join(report_dir, 'train.png')
+        self.ds.plot_filtered(self.train_ds.indices, fig_save_path)
 
-    def plot_test(self):
-        self.ds.plot_filtered(self.test_ds.indices)
+    def plot_test(self, report_dir: str = None):
+        fig_save_path = None if report_dir is None else os.path.join(report_dir, 'test.png')
+        self.ds.plot_filtered(self.test_ds.indices, fig_save_path)
 
-    def plot_eval(self):
-        self.ds.plot_filtered(self.eval_ds.indices)
+    def plot_eval(self, report_dir: str = None):
+        fig_save_path = None if report_dir is None else os.path.join(report_dir, 'eval.png')
+        self.ds.plot_filtered(self.eval_ds.indices, fig_save_path)
 
 
 
