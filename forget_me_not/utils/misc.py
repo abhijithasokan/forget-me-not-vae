@@ -14,10 +14,14 @@ class DeterministicRandomness:
 
 
 
-def cliped_iter_dataloder(dataloader, num_samples):
+def cliped_iter_dataloder(dataloader, num_samples: int = None):
     """
     Clips the dataloader to num_samples
     """
+    if num_samples is None:
+        yield from dataloader
+        return
+    
     remaining_samples = num_samples
     for batch in dataloader:
         x, *rem = batch

@@ -1,3 +1,4 @@
+import time
 from typing import Union
 
 import numpy as np
@@ -92,14 +93,14 @@ class BetaVAEModule(pl.LightningModule):
         self.model = vae_model
         self.learning_rate = learning_rate
         self.beta = beta    
-        self.setup_log_ouputs()
         self.loss_func = Losses(self, loss=loss)
         # fix this
         self.lmbda = self.beta 
+        self.additional_monitoring_metric = {"train": {}, "test" : {}, "validation" : {}}
 
-    def setup_log_ouputs(self):
+
+    def on_train_epoch_start(self):
         self.train_step_outputs = []
-        self.validation_step_outputs = []
 
     def training_step(self, batch, batch_idx):
         loss = self.loss_func(batch)     
@@ -111,22 +112,24 @@ class BetaVAEModule(pl.LightningModule):
     def on_train_epoch_end(self):
         avg_loss = torch.stack([x['loss'] for x in self.train_step_outputs]).mean()
         self.logger.experiment.add_scalar("Loss/Train", avg_loss, self.current_epoch)
-        self.train_step_outputs = []
         
+
+    def on_validation_epoch_start(self) -> None:
+        self.validation_step_outputs = []
 
     def validation_step(self, batch, batch_idx):
         loss = self.loss_func(batch) 
         self.validation_step_outputs.append({
-            "loss" : loss
+            "loss" : loss,
+            "metrics" : self.compute_matrics('validation', batch),
         })
         return loss
-    
 
     def on_validation_epoch_end(self):
         avg_loss = torch.stack([x['loss'] for x in self.validation_step_outputs]).mean()
         self.log("val_loss", avg_loss)
         self.logger.experiment.add_scalar("Loss/Validation", avg_loss, self.current_epoch)
-        self.validation_step_outputs = []
+        self.log_metrics('validation', self._aggregate_metrics('validation', [x['metrics'] for x in self.validation_step_outputs]))
 
 
     def configure_optimizers(self):
@@ -136,10 +139,58 @@ class BetaVAEModule(pl.LightningModule):
         }
 
 
+    def add_additional_monitoring_metric(self, stage, metric_label, metric_func, agg_func=torch.mean, timeit=False):
+        metric = self.additional_monitoring_metric[stage][metric_label] = {}
+        metric['metric_func'] = metric_func
+        metric['agg_func']  = agg_func
+        metric['timeit'] = timeit
+
+    def compute_matrics(self, stage, batch):
+        with torch.set_grad_enabled(False):
+            results = {}
+            for metric_label, metric in self.additional_monitoring_metric[stage].items():
+                res = results[metric_label] = {}
+                if metric['timeit']:
+                    start = time.time()
+                    res['value'] = metric['metric_func'](self.model, batch)
+                    end = time.time()
+                    res['time'] = end - start
+                else:
+                    res['value'] = metric['metric_func'](self.model, batch)
+
+            return results
+
+    def _aggregate_metrics(self, stage, results):
+        agg_result = {}
+        for metric_label, metric in self.additional_monitoring_metric[stage].items():
+            agg_result[metric_label] = {}
+            metric_results = torch.tensor([res[metric_label]['value'] for res in results] )
+            agg_result[metric_label]['value'] = metric['agg_func'](metric_results)
+
+            if metric['timeit']:
+                metric_time = sum(res[metric_label]['time'] for res in results)
+                agg_result[metric_label]['time'] = metric_time
+        return agg_result
+
+    def log_metrics(self, stage, results):
+        for metric_label, metric_res in results.items():
+            self.logger.experiment.add_scalar(f"{metric_label}/{stage.title()}", metric_res['value'], self.current_epoch)
+            if 'time' in metric_res:
+                self.logger.experiment.add_scalar(f"{metric_label}-time/{stage.title()}", metric_res['time'], self.current_epoch)
 
 
-def train(model, train_data_loader, val_data_loader, num_epochs=100, accelerator=None,  
-          enable_progress_bar=True, early_stop=True):
+
+
+def train(
+        model, 
+        train_data_loader, 
+        val_data_loader, 
+        num_epochs, 
+        accelerator,  
+        check_val_every_n_epoch=5,
+        enable_progress_bar=True, 
+        early_stop=False
+    ):
     from pytorch_lightning.callbacks.early_stopping import EarlyStopping
     from pytorch_lightning.loggers import TensorBoardLogger
 
@@ -151,7 +202,8 @@ def train(model, train_data_loader, val_data_loader, num_epochs=100, accelerator
     logger = TensorBoardLogger('train_logs', 'vae_experiments')
 
     trainer = pl.Trainer(accelerator=accelerator,max_epochs=num_epochs, 
-        check_val_every_n_epoch=1, enable_progress_bar=enable_progress_bar, callbacks=callbacks, logger=logger, 
+        check_val_every_n_epoch=check_val_every_n_epoch, 
+        enable_progress_bar=enable_progress_bar, callbacks=callbacks, logger=logger, 
     )
              
     trainer.fit(model, train_dataloaders=train_data_loader, val_dataloaders=val_data_loader)

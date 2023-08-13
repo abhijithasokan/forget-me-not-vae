@@ -15,7 +15,7 @@ def compute_negative_log_likelihood(vae_model, dataloader, dim, num_importance_s
     vae_model.eval()
     
     nll_batches = []
-    ds_size = len(dataloader.dataset)
+    ds_size = 0
     for batch in dataloader:
         x, _ = batch
         elbo_samples = []
@@ -27,9 +27,16 @@ def compute_negative_log_likelihood(vae_model, dataloader, dim, num_importance_s
         elbo_samples = torch.tensor(elbo_samples)
         nll_batch = - ( torch.logsumexp(elbo_samples, dim=0) - np.log(num_importance_sampling) )
         nll_batches.append(nll_batch)
+        ds_size += x.size(0)
     nll = torch.tensor(nll_batches).sum().item()/ds_size # negative log likelihood
     bpd = nll / (dim * np.log(2.)) # bits per dimension
     return bpd
+
+def compute_negative_log_likelihood_for_batch(vae_model, batch, *args, **kwargs):
+    dataloader = [batch]
+    return compute_negative_log_likelihood(vae_model, dataloader, *args, **kwargs)
+
+
 
 
 def active_units(vae_model, dataloader):
@@ -44,6 +51,11 @@ def active_units(vae_model, dataloader):
     all_latents = torch.cat(all_latents, dim=0)
     active_units = (all_latents.std(dim=0) > 0.1).sum().item()
     return active_units
+
+
+def active_units_for_batch(vae_model, batch, *args, **kwargs):
+    dataloader = [batch]
+    return active_units(vae_model, dataloader, *args, **kwargs)
 
 
 
@@ -103,17 +115,54 @@ def mutual_information(vae_model, dataloader, num_samples):
     return mutual_information
 
 
+def mutual_information_for_batch(vae_model, batch, *args, **kwargs):
+    dataloader = [batch]
+    return mutual_information(vae_model, dataloader, *args, **kwargs)
 
-def compute_density_and_coverage(vae_model, dataloader, num_samples, nearest_k=5):
+
+
+
+def compute_density_and_coverage(vae_model, dataloader, nearest_k=5, num_samples=None):
     vae_model.eval()
     samples = []
     for batch in cliped_iter_dataloder(dataloader, num_samples):
         x, _ = batch
         samples.append(x)
     samples = torch.cat(samples, dim=0)
+    num_samples = samples.size(0)
     with torch.no_grad():
         latent_samples = vae_model.get_latent_representation(samples)
         generated_samples = vae_model.generate_sample_from_latent_prior(num_samples)
         latent_of_generated_samples = vae_model.get_latent_representation(generated_samples)
 
     return compute_prdc(latent_samples, latent_of_generated_samples, nearest_k=nearest_k)
+
+
+def compute_density_and_coverage_for_batch(vae_model, batch, *args, **kwargs):
+    dataloader = [batch]
+    return compute_density_and_coverage(vae_model, dataloader, *args, **kwargs)
+
+
+
+
+
+def compute_metrics(vae_model, test_data_loader, metric_and_its_params):
+    res = {}
+    if "negative_log_likelihood" in metric_and_its_params:
+        nll = compute_negative_log_likelihood(vae_model, test_data_loader, **metric_and_its_params["negative_log_likelihood"])
+        res["Negative log likelihood"] = nll
+
+    if "active_units" in metric_and_its_params:
+        au = active_units(vae_model, test_data_loader)
+        res["Active units"] =  au
+
+    if "mutual_information" in metric_and_its_params:
+        mi = mutual_information(vae_model, test_data_loader, **metric_and_its_params["mutual_information"])
+        res["Mutual information"] = mi
+
+    if "density_and_coverage" in metric_and_its_params:
+        dc = compute_density_and_coverage(vae_model, test_data_loader, **metric_and_its_params["density_and_coverage"])
+        res["Density"] = dc["density"]
+        res["Coverage"] = dc["coverage"]
+    
+    return res
