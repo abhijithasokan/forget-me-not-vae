@@ -7,7 +7,7 @@ from torch import nn
 from torch.nn import functional as F
 import pytorch_lightning as pl
 
-from forget_me_not.models.vae import VAE, VAEWithCriticNetwork
+from forget_me_not.models.vae_base import VAEBase, CriticNetworkBase
 
 
 
@@ -22,13 +22,13 @@ class Losses:
     def vanilla_beta_vae_loss(self, batch):
         x, _ = batch
         _, x_recons, mean, log_var = self.vae_module.model.forward(x)
-        return VAE.negative_elbo(x, x_recons, mean, log_var, self.vae_module.beta) / x.size(0)
+        return self.vae_module.model.negative_elbo(x, x_recons, mean, log_var, self.vae_module.beta) / x.size(0)
     
 
     def _critic_loss(self, batch, critic_func):
         x, _ = batch
         z, x_recons, mean, log_var = self.vae_module.model.forward(x)
-        vanilla_loss = VAE.negative_elbo(x, x_recons, mean, log_var, beta=1.0) / x.size(0)
+        vanilla_loss = self.vae_module.model.negative_elbo(x, x_recons, mean, log_var, beta=1.0) / x.size(0)
         critic_loss = critic_func(z, x, mean, log_var)
         return vanilla_loss + self.vae_module.lmbda * critic_loss
         
@@ -58,7 +58,7 @@ class Losses:
 
 
     def _nn_critic_loss(self, z, x, *args):
-        if not isinstance(self.vae_module.model, VAEWithCriticNetwork):
+        if not hasattr(self.vae_module.model, 'critic_model') or not isinstance(self.vae_module.model.critic_model, CriticNetworkBase):
             raise ValueError("The model doesn't have a critic network")
 
         critic_loss = self.vae_module.model.critic_model.forward(z, x)
@@ -87,7 +87,7 @@ class Losses:
 
 
 class BetaVAEModule(pl.LightningModule):
-    def __init__(self, vae_model: Union[VAE, VAEWithCriticNetwork], loss: str, beta: float, learning_rate: float):
+    def __init__(self, vae_model: VAEBase, loss: str, beta: float, learning_rate: float):
         super().__init__()
         #self.save_hyperparameters()
         self.model = vae_model

@@ -30,7 +30,7 @@ class OmniglotDataModule(DataModuleBase):
         super().__init__()
         
         self.data_dir = data_dir
-        img_transform = transforms.Compose([transforms.PILToTensor(), transforms.ConvertImageDtype(torch.float32)])
+        img_transform = transforms.Compose([transforms.PILToTensor(), transforms.Resize(64), transforms.ConvertImageDtype(torch.float32)])
         self.ds = OmniglotDataset(self.data_dir, img_transform=img_transform)
     
         tf = train_fraction * (1 - eval_fraction)

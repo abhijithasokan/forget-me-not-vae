@@ -4,6 +4,8 @@ import torch
 from sklearn.decomposition import PCA
 
 def plot_latent_representation_2d(vae_model, samples, labels, report_dir: str = None):
+    if report_dir is not None:
+        os.makedirs(report_dir, exist_ok=True)
     vae_model.eval()
     with torch.no_grad():
         latent_rep = vae_model.get_latent_representation(samples, deterministic=False)

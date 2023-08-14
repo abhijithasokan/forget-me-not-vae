@@ -3,7 +3,6 @@ import numpy as np
 
 from prdc import compute_prdc
 
-from forget_me_not.models.vae import VAE
 from forget_me_not.utils.misc import cliped_iter_dataloder
 
 
@@ -22,7 +21,7 @@ def compute_negative_log_likelihood(vae_model, dataloader, dim, num_importance_s
         for _ in range(num_importance_sampling):
             with torch.no_grad():
                 _, x_recons, mean, log_var = vae_model.forward(x)
-            elbo = -VAE.negative_elbo(x, x_recons, mean, log_var, beta=1).item()
+            elbo = -vae_model.negative_elbo(x, x_recons, mean, log_var, beta=1).item()
             elbo_samples.append(elbo)
         elbo_samples = torch.tensor(elbo_samples)
         nll_batch = - ( torch.logsumexp(elbo_samples, dim=0) - np.log(num_importance_sampling) )
@@ -92,7 +91,7 @@ def mutual_information(vae_model, dataloader, num_samples):
 
 
     # Compute the second term: E[log q(z)]
-    z = VAE.reparameterize(all_mu, all_logvar)
+    z = vae_model.reparameterize(all_mu, all_logvar)
     
     # Exapnding dimensions for the broadcasting trick
     z = z.unsqueeze(1) # shape: (num_samples, 1, dim_z) # TODO: use the z from the previous step
