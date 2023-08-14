@@ -1,13 +1,9 @@
 import os
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS
-from torch.utils.data import Dataset
 import numpy as np
 import torch
 
-from pytorch_lightning import LightningDataModule
-from sklearn.decomposition import PCA
-
-class GaussianMixture(Dataset):
+from forget_me_not.datasets.base import DatasetBase
+class GaussianMixture(DatasetBase):
     def __init__(
             self, 
             n_samples: int, 
@@ -64,15 +60,15 @@ class GaussianMixture(Dataset):
     def __getitem__(self, index):
         return self.data[index], self.labels[index]
     
-
     def plot(self):
         return self.plot_helper(self.data, self.labels)
 
     def plot_filtered(self, filtered_inds, save_fig_path: str = None):
         return self.plot_helper(self.data[filtered_inds], self.labels[filtered_inds], save_fig_path)
-
+    
     @staticmethod
     def plot_helper(data, labels, save_fig_path: str = None):
+        from sklearn.decomposition import PCA
         if data.shape[1] > 2:
             data = PCA(n_components=2).fit_transform(data)
         import matplotlib.pyplot as plt
@@ -84,12 +80,11 @@ class GaussianMixture(Dataset):
         plt.close()
 
 
-
-
-
 from forget_me_not.utils.misc import DeterministicRandomness
-from torch.utils.data import random_split, DataLoader
-class GaussianMixtureDataModule(LightningDataModule):
+from torch.utils.data import random_split
+from forget_me_not.datasets.base import DataModuleBase
+
+class GaussianMixtureDataModule(DataModuleBase):
     def __init__(self, train_fraction: float, eval_fraction: float, *args, **kwargs):
         super().__init__()
         self.ds = GaussianMixture(*args, **kwargs)
@@ -106,18 +101,6 @@ class GaussianMixtureDataModule(LightningDataModule):
         else:
             raise ValueError(f'Unknown stage: {stage}')
 
-    def train_dataloader(self, batch_size: int = None):
-        batch_size = batch_size if batch_size is not None else len(self.train_ds)
-        return DataLoader(self.train_ds, batch_size=batch_size, shuffle=True)
-    
-    def test_dataloader(self, batch_size: int = None):
-        batch_size = batch_size if batch_size is not None else len(self.test_ds)
-        return DataLoader(self.test_ds, batch_size=batch_size, shuffle=False)
-
-    def val_dataloader(self, batch_size: int = None):
-        batch_size = batch_size if batch_size is not None else len(self.eval_ds)
-        return DataLoader(self.eval_ds, batch_size=batch_size, shuffle=False)
-
     def plot_train(self, report_dir: str = None):
         fig_save_path = None if report_dir is None else os.path.join(report_dir, 'train.png')
         self.ds.plot_filtered(self.train_ds.indices, fig_save_path)
@@ -129,6 +112,7 @@ class GaussianMixtureDataModule(LightningDataModule):
     def plot_eval(self, report_dir: str = None):
         fig_save_path = None if report_dir is None else os.path.join(report_dir, 'eval.png')
         self.ds.plot_filtered(self.eval_ds.indices, fig_save_path)
+
 
 
 

@@ -1,6 +1,12 @@
 # py-torch, lightening and tensoboard stuff
 */train_logs/*
 
+# data
+*/dataset_store/*
+
+# reports
+*/reports/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
