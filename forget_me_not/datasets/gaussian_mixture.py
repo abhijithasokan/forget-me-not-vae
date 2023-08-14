@@ -81,6 +81,7 @@ class GaussianMixture(Dataset):
             plt.savefig(save_fig_path)
         else:
             plt.show()
+        plt.close()
 
 
 
