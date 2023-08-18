@@ -19,13 +19,15 @@ class CNNEncoder(nn.Module):
     def __init__(self, num_channels: int):
         super(CNNEncoder, self).__init__()
         self.layers = nn.Sequential(
-            nn.Conv2d(num_channels, 32, kernel_size=4, stride=2),
+            nn.Conv2d(num_channels, 32, kernel_size=3, stride=1), # 26x26
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2), # 12x12
             nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=4, stride=2),
+            nn.Conv2d(64, 128, kernel_size=4, stride=2), # 5x5
             nn.ReLU(),
-            nn.Conv2d(128, 256, kernel_size=4, stride=2),
+            nn.Conv2d(128, 256, kernel_size=3, stride=2), # 2x2
+            nn.ReLU(),
+            nn.Conv2d(256, 512, kernel_size=2, stride=1), # 1x1
             nn.ReLU(),
             Flatten()
         )
@@ -51,13 +53,15 @@ class CNNDecoder(nn.Module):
         super(CNNDecoder, self).__init__()
         self.layers = nn.Sequential(
             UnFlatten(),
-            nn.ConvTranspose2d(dim, 128, kernel_size=5, stride=2),
+            nn.ConvTranspose2d(dim, 256, kernel_size=2, stride=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(128, 64, kernel_size=5, stride=2),
+            nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 32, kernel_size=6, stride=2),
+            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2),
             nn.ReLU(),
-            nn.ConvTranspose2d(32, num_channels, kernel_size=6, stride=2),
+            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2),
+            nn.ReLU(),
+            nn.ConvTranspose2d(32, num_channels, kernel_size=3, stride=1),
             nn.Sigmoid(),
         )
          
