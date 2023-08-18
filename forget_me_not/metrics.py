@@ -1,9 +1,15 @@
+import logging
+
+from prdc import compute_prdc
 import torch
 import numpy as np
 
-from prdc import compute_prdc
-
 from forget_me_not.utils.misc import cliped_iter_dataloder
+
+
+logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+
+
 
 
 def compute_negative_log_likelihood(vae_model, dataloader, dim, num_importance_sampling):
@@ -125,16 +131,18 @@ def mutual_information_for_batch(vae_model, batch, *args, **kwargs):
 def compute_density_and_coverage(vae_model, dataloader, nearest_k=5, num_samples=None):
     vae_model.eval()
     samples = []
+    all_latents = []
+    latent_of_generated_samples = []
     for batch in cliped_iter_dataloder(dataloader, num_samples):
         x, _ = batch
-        samples.append(x)
-    samples = torch.cat(samples, dim=0)
-    num_samples = samples.size(0)
-    with torch.no_grad():
-        latent_samples = vae_model.get_latent_representation(samples)
-        generated_samples = vae_model.generate_sample_from_latent_prior(num_samples)
-        latent_of_generated_samples = vae_model.get_latent_representation(generated_samples)
+        with torch.no_grad():
+            latent_samples = vae_model.get_latent_representation(x)
+            all_latents.append(latent_samples)
+            generated_samples = vae_model.generate_sample_from_latent_prior(latent_samples.size(0))
+            latent_of_generated_samples.append(vae_model.get_latent_representation(generated_samples))
 
+    all_latents = torch.cat(all_latents, dim=0)
+    latent_of_generated_samples = torch.cat(latent_of_generated_samples, dim=0)
     return compute_prdc(latent_samples, latent_of_generated_samples, nearest_k=nearest_k)
 
 
@@ -147,24 +155,30 @@ def compute_density_and_coverage_for_batch(vae_model, batch, *args, **kwargs):
 
 
 def compute_metrics(vae_model, test_data_loader, metric_and_its_params):
+    logging.info("Computing metrics")
     vae_model.eval()
     with torch.no_grad():
         res = {}
         if "negative_log_likelihood" in metric_and_its_params:
             nll = compute_negative_log_likelihood(vae_model, test_data_loader, **metric_and_its_params["negative_log_likelihood"])
             res["Negative log likelihood"] = nll
+            logging.info(f"Negative log likelihood: {nll}")
 
         if "active_units" in metric_and_its_params:
             au = active_units(vae_model, test_data_loader)
             res["Active units"] =  au
+            logging.info(f"Active units: {au}")
 
         if "mutual_information" in metric_and_its_params:
             mi = mutual_information(vae_model, test_data_loader, **metric_and_its_params["mutual_information"])
             res["Mutual information"] = mi
+            logging.info(f"Mutual information: {mi}")
 
         if "density_and_coverage" in metric_and_its_params:
             dc = compute_density_and_coverage(vae_model, test_data_loader, **metric_and_its_params["density_and_coverage"])
             res["Density"] = dc["density"]
             res["Coverage"] = dc["coverage"]
+            logging.info(f"Density: {dc['density']}")
+            logging.info(f"Coverage: {dc['coverage']}")
     
         return res
