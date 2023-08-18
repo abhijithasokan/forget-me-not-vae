@@ -36,6 +36,10 @@ class CNNEncoder(nn.Module):
         return self.layers(x)
 
 
+    @property
+    def dtype(self):
+        return self.layers[0].weight.dtype
+
 
 
 class UnFlatten(nn.Module):
@@ -93,6 +97,10 @@ class CNNVAE(VAEWithGaussianPrior):
         hidden_rep = self.encoder(data)
         mean, log_var = self.fc_mean(hidden_rep), self.fc_logvar(hidden_rep)
         return mean, log_var
+
+    @property
+    def dtype(self):
+        return self.encoder.dtype
 
 
 

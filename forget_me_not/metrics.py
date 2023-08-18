@@ -48,7 +48,8 @@ def active_units(vae_model, dataloader):
         all_latents.append(latents)
 
     all_latents = torch.cat(all_latents, dim=0)
-    active_units = (all_latents.std(dim=0) > 0.1).sum().item()
+    # correction=1 is for unbiased std? Saw similar implementation at - https://github.com/jxhe/vae-lagging-encoder/blob/cdc4eb9d9599a026bf277db74efc2ba1ec203b15/image.py#L145
+    active_units = (all_latents.std(dim=0, correction=1) > 0.1).sum().item() 
     return active_units
 
 
@@ -146,22 +147,24 @@ def compute_density_and_coverage_for_batch(vae_model, batch, *args, **kwargs):
 
 
 def compute_metrics(vae_model, test_data_loader, metric_and_its_params):
-    res = {}
-    if "negative_log_likelihood" in metric_and_its_params:
-        nll = compute_negative_log_likelihood(vae_model, test_data_loader, **metric_and_its_params["negative_log_likelihood"])
-        res["Negative log likelihood"] = nll
+    vae_model.eval()
+    with torch.no_grad():
+        res = {}
+        if "negative_log_likelihood" in metric_and_its_params:
+            nll = compute_negative_log_likelihood(vae_model, test_data_loader, **metric_and_its_params["negative_log_likelihood"])
+            res["Negative log likelihood"] = nll
 
-    if "active_units" in metric_and_its_params:
-        au = active_units(vae_model, test_data_loader)
-        res["Active units"] =  au
+        if "active_units" in metric_and_its_params:
+            au = active_units(vae_model, test_data_loader)
+            res["Active units"] =  au
 
-    if "mutual_information" in metric_and_its_params:
-        mi = mutual_information(vae_model, test_data_loader, **metric_and_its_params["mutual_information"])
-        res["Mutual information"] = mi
+        if "mutual_information" in metric_and_its_params:
+            mi = mutual_information(vae_model, test_data_loader, **metric_and_its_params["mutual_information"])
+            res["Mutual information"] = mi
 
-    if "density_and_coverage" in metric_and_its_params:
-        dc = compute_density_and_coverage(vae_model, test_data_loader, **metric_and_its_params["density_and_coverage"])
-        res["Density"] = dc["density"]
-        res["Coverage"] = dc["coverage"]
+        if "density_and_coverage" in metric_and_its_params:
+            dc = compute_density_and_coverage(vae_model, test_data_loader, **metric_and_its_params["density_and_coverage"])
+            res["Density"] = dc["density"]
+            res["Coverage"] = dc["coverage"]
     
-    return res
+        return res

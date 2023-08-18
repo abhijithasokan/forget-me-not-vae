@@ -43,6 +43,11 @@ class VAEBase(ABC, nn.Module):
             z = self.reparameterize(mean, log_var)    # latent_representation
         return z
 
+    @property
+    @abstractmethod
+    def dtype(self):
+        raise NotImplementedError
+
 
 
 

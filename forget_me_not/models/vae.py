@@ -8,7 +8,7 @@ class VAE(VAEWithGaussianPrior):
         super(VAE, self).__init__()
         self.latent_dim = latent_dim
         self.dim = dim
-        self.dtype = dtype
+        self._dtype = dtype
         middle_layer_dim = hidden_dim #int((dim*latent_dim) ** 0.5) 
         
 
@@ -30,6 +30,10 @@ class VAE(VAEWithGaussianPrior):
         mean_and_variance = self.encoder(data).view(-1, 2, self.latent_dim)
         mean, log_var = mean_and_variance.permute(1,0,2)
         return mean, log_var
+
+    @property
+    def dtype(self):
+        return self._dtype
     
 
     
