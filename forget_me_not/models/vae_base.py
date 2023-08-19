@@ -1,5 +1,4 @@
 from abc import abstractmethod, ABC
-
 import numpy as np
 from torch import nn
 import torch
@@ -34,6 +33,14 @@ class VAEBase(ABC, nn.Module):
         
         reconstruction = self.decoder(z)
         return z, reconstruction, mean, log_var
+
+    def add_nn_critic(self, critic: 'CriticNetworkBase'):
+        if hasattr(self, 'critic'):
+            raise ValueError('Critic already exists')
+        self.critic = critic
+
+    def add_hybrid_critic(self, critic: 'CriticNetworkBase'):
+        raise NotImplementedError
     
     def get_latent_representation(self, data, deterministic=False):
         mean, log_var = self.get_posterir_dist_params(data)

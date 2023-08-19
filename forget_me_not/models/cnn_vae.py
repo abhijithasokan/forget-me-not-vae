@@ -1,13 +1,17 @@
+import logging
+from copy import deepcopy
+
 import torch
 from torch import nn
 import torch.nn.functional as F
-
 
 from .vae_base import VAEWithGaussianPrior, CriticNetworkBase
 
 '''
     The CNN VAE implementation here is adapted from - https://github.com/sksq96/pytorch-vae/blob/14ce22796fe0ee5120f4f1cdb1dbaf515e72559d/vae.py#L15
 '''
+
+logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
 
 class Flatten(nn.Module):
@@ -18,6 +22,7 @@ class Flatten(nn.Module):
 class CNNEncoder(nn.Module):
     def __init__(self, num_channels: int):
         super(CNNEncoder, self).__init__()
+        self.shared_layers = nn.Sequential(nn.Identity())
         self.layers = nn.Sequential(
             nn.Conv2d(num_channels, 32, kernel_size=3, stride=1), # 26x26
             nn.ReLU(),
@@ -31,14 +36,34 @@ class CNNEncoder(nn.Module):
             nn.ReLU(),
             Flatten()
         )
+        self._dtype = self.layers[0].weight.dtype
          
     def forward(self, x):
+        x = self.shared_layers(x)
         return self.layers(x)
+
+    
+    def split_layers_to_shared_and_non_shared(self, num_shared_layers: int):
+        if num_shared_layers == 0:
+            return 
+        if num_shared_layers > len(self.layers):
+            raise ValueError(f'num_shared_layers ({num_shared_layers}) should be less than the number of layers ({len(self.layers)})')
+        
+        self.shared_layers = nn.Sequential(*self.layers[:num_shared_layers])
+        self.layers = nn.Sequential(*self.layers[num_shared_layers:])
+        if len(self.layers) == 0:
+            self.layers = nn.Sequential(nn.Identity())
+        logging.info(f'First {num_shared_layers} layers are shared.  The last 2 of the shared layers are: {self.shared_layers[-2:]}')
+
+    def get_copy(self):
+        copy_encoder = deepcopy(self)
+        copy_encoder.shared_layers = self.shared_layers  # Share the shared_layers parameter
+        return copy_encoder
 
 
     @property
     def dtype(self):
-        return self.layers[0].weight.dtype
+        return self._dtype
 
 
 
@@ -103,6 +128,13 @@ class CNNVAE(VAEWithGaussianPrior):
         return self.encoder.dtype
 
 
+    def add_hybrid_critic(self, num_shared_layer: int, contrast_dim: int, hidden_dim_x: int, hidden_dim_z: int):
+        if hasattr(self, 'critic'):
+            raise ValueError('A critic already exists')
+        self.encoder.split_layers_to_shared_and_non_shared(num_shared_layer)
+        copy_encoder = self.encoder.get_copy()
+        self.critic = CriticNetworkForCNNVAE(copy_encoder, self.hidden_dim, self.latent_dim, contrast_dim, hidden_dim_x, hidden_dim_z, dtype=self.dtype)
+
 
 class CriticNetworkForCNNVAE(CriticNetworkBase):
     def __init__(self, img_encoder: CNNEncoder, img_enc_dim: int, latent_dim: int, contrast_dim: int, hidden_dim_x: int, hidden_dim_z: int, dtype=torch.float64):
@@ -125,10 +157,3 @@ class CriticNetworkForCNNVAE(CriticNetworkBase):
         )
 
 
-
-
-class CNNVAEWithCriticNetwork(CNNVAE):
-    def __init__(self, critic_model: CriticNetworkForCNNVAE, *args, **kwargs):
-        super(CNNVAEWithCriticNetwork, self).__init__(*args, **kwargs)
-        self.critic_model = critic_model
-        

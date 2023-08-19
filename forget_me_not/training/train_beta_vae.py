@@ -58,10 +58,10 @@ class Losses:
 
 
     def _nn_critic_loss(self, z, x, *args):
-        if not hasattr(self.vae_module.model, 'critic_model') or not isinstance(self.vae_module.model.critic_model, CriticNetworkBase):
+        if not hasattr(self.vae_module.model, 'critic') or not isinstance(self.vae_module.model.critic, CriticNetworkBase):
             raise ValueError("The model doesn't have a critic network")
 
-        critic_loss = self.vae_module.model.critic_model.forward(z, x)
+        critic_loss = self.vae_module.model.critic.forward(z, x)
         return critic_loss
 
 

@@ -37,10 +37,6 @@ class VAE(VAEWithGaussianPrior):
     
 
     
-
-
-
-
     
 class CriticNetwork(CriticNetworkBase):
     def __init__(self, dim: int, latent_dim: int, contrast_dim: int, hidden_dim_x: int, hidden_dim_z: int, dtype=torch.float64):
@@ -65,8 +61,3 @@ class CriticNetwork(CriticNetworkBase):
 
 
 
-class VAEWithCriticNetwork(VAE):
-    def __init__(self, critic_model: CriticNetwork, *args, **kwargs):
-        super(VAEWithCriticNetwork, self).__init__(*args, **kwargs)
-        self.critic_model = critic_model
-        
