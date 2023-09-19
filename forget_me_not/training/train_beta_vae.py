@@ -190,7 +190,9 @@ def train(
         accelerator,  
         check_val_every_n_epoch=5,
         enable_progress_bar=True, 
-        early_stop=False
+        early_stop=False,
+        root_train_log_dir='train_logs',
+        sub_dir='vae_experiments',
     ):
     from pytorch_lightning.callbacks.early_stopping import EarlyStopping
     from pytorch_lightning.loggers import TensorBoardLogger
@@ -200,7 +202,7 @@ def train(
         early_stop_callback = EarlyStopping(monitor="val_loss", patience=5, mode="min")
         callbacks.append(early_stop_callback)
 
-    logger = TensorBoardLogger('train_logs', 'vae_experiments')
+    logger = TensorBoardLogger(root_train_log_dir, sub_dir)
 
     trainer = pl.Trainer(accelerator=accelerator,max_epochs=num_epochs, 
         check_val_every_n_epoch=check_val_every_n_epoch, 

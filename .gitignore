@@ -4,6 +4,7 @@
 # data
 */dataset_store/*
 ext_untrack/*
+ext/datasets/*
 *.mat
 *.pdf
 *.DS_Store
@@ -11,6 +12,7 @@ ext_untrack/*
 # reports
 */reports/*
 res_mv/*
+train_logs/*
 
 # misc
 archive_untrack/*
