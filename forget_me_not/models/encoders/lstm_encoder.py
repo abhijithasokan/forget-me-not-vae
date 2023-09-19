@@ -40,5 +40,9 @@ class LSTMEncoder(nn.Module):
         self.embed = other.embed
 
     @property
+    def device(self):
+        return self.lstm.weight_ih_l0.device
+
+    @property
     def dtype(self):
         return self.lstm.weight_ih_l0.dtype

@@ -35,6 +35,10 @@ class LSTMVAE(VAEWithGaussianPrior):
     @property
     def dtype(self):
         return self.encoder.dtype
+    
+    @property
+    def device(self):
+        return self.encoder.device
 
 
     def reconstruction_loss(self, x, x_recons):

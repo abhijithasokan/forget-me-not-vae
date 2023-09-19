@@ -12,6 +12,16 @@ logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
 DEFAULT_SIZE_FN = lambda x: x.size(0)
 
+def move_to_device(x, device):
+    if isinstance(x, torch.Tensor):
+        return x.to(device)
+    elif isinstance(x, dict):
+        return {k: move_to_device(v, device) for k, v in x.items()}
+    elif isinstance(x, list):
+        return [move_to_device(v, device) for v in x]
+    else:
+        raise NotImplementedError(f"Unknown type: {type(x)}")
+    
 
 def compute_negative_log_likelihood(vae_model, dataloader, num_importance_sampling, size_fn=DEFAULT_SIZE_FN):
     """
@@ -24,6 +34,7 @@ def compute_negative_log_likelihood(vae_model, dataloader, num_importance_sampli
     ds_size = 0
     for batch in dataloader:
         x, _ = batch
+        x = move_to_device(x, vae_model.device)
         elbo_samples = []
         for _ in range(num_importance_sampling):
             with torch.no_grad():
@@ -51,6 +62,7 @@ def active_units(vae_model, dataloader):
     all_latents = []
     for batch in dataloader:
         x, _ = batch
+        x = move_to_device(x, vae_model.device)
         with torch.no_grad():
             latents = vae_model.get_latent_representation(x)
         all_latents.append(latents)
@@ -82,6 +94,7 @@ def mutual_information(vae_model, dataloader, num_samples):
     all_mu, all_logvar = [], []
     for batch in cliped_iter_dataloder(dataloader, num_samples):
         x, _ = batch
+        x = move_to_device(x, vae_model.device)
         with torch.no_grad():
             _, _, mean, log_var = vae_model.forward(x)
         all_mu.append(mean)
