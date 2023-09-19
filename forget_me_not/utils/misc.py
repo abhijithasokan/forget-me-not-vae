@@ -26,7 +26,11 @@ def cliped_iter_dataloder(dataloader, num_samples: int = None):
     for batch in dataloader:
         x, *rem = batch
         if remaining_samples < len(x):
-            batch = x[:remaining_samples], *[rr[:remaining_samples] for rr in rem]
+            if isinstance(x, torch.Tensor):
+                x = x[:remaining_samples]
+            elif isinstance(x, dict):
+                x = {k: v[:remaining_samples] for k, v in x.items()}
+            batch = x, *[rr[:remaining_samples] for rr in rem]
             yield batch
             return
         remaining_samples -= len(x)

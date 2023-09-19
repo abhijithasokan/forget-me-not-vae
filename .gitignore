@@ -3,9 +3,17 @@
 
 # data
 */dataset_store/*
+ext_untrack/*
+*.mat
+*.pdf
+*.DS_Store
 
 # reports
 */reports/*
+res_mv/*
+
+# misc
+archive_untrack/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

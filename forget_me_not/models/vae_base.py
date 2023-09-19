@@ -11,9 +11,9 @@ class VAEBase(ABC, nn.Module):
     def reparameterize(mean, log_var):
         pass
 
-    @classmethod
+    
     @abstractmethod
-    def negative_elbo(cls, x, x_recons, mean, log_var, beta):
+    def negative_elbo(self, x, x_recons, mean, log_var, beta):
         pass
     
     @abstractmethod
@@ -92,12 +92,19 @@ class VAEWithGaussianPrior(VAEBase): #is this a good name?
     
 
     @staticmethod
-    def negative_elbo(x, x_recons, mean, log_var, beta):
+    def mse_loss(x, x_recons):
+        return (x_recons - x).pow(2).sum()
+
+    
+    def negative_elbo(self, x, x_recons, mean, log_var, beta):
         # The below term corresponds to the Logliklihood term in the VAE loss
         # bce_loss = nn.functional.binary_cross_entropy(x_recons, x, reduction='sum')
         # reconn_loss = bce_loss
-        reconn_loss = (x_recons - x).pow(2).sum()
-        
+        if hasattr(self, 'reconstruction_loss'):
+            reconn_loss = self.reconstruction_loss(x, x_recons)
+        else:
+            reconn_loss = VAEWithGaussianPrior.mse_loss(x, x_recons)
+            
         # Below is the KL divergence part of the VAE loss 
         # For eqn, see - https://mr-easy.github.io/2020-04-16-kl-divergence-between-2-gaussian-distributions/
         kl_div = 0.5 * torch.sum(log_var.exp() - log_var - 1 + mean.pow(2))

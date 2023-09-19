@@ -9,12 +9,13 @@ import pytorch_lightning as pl
 
 from forget_me_not.models.vae_base import VAEBase, CriticNetworkBase
 
-
+DEFAULT_SIZE_FN = lambda x: x.size(0)
 
 class Losses:
-    def __init__(self, vae_module, loss:str):
+    def __init__(self, vae_module, loss:str, size_fn: callable):
         self.vae_module = vae_module
         self.loss_func = self.get_loss_function(loss)
+        self.size_fn = size_fn
 
     def __call__(self, *args):
         return self.loss_func(*args)
@@ -22,13 +23,13 @@ class Losses:
     def vanilla_beta_vae_loss(self, batch):
         x, _ = batch
         _, x_recons, mean, log_var = self.vae_module.model.forward(x)
-        return self.vae_module.model.negative_elbo(x, x_recons, mean, log_var, self.vae_module.beta) / x.size(0)
+        return self.vae_module.model.negative_elbo(x, x_recons, mean, log_var, self.vae_module.beta) / self.size_fn(x)
     
 
     def _critic_loss(self, batch, critic_func):
         x, _ = batch
         z, x_recons, mean, log_var = self.vae_module.model.forward(x)
-        vanilla_loss = self.vae_module.model.negative_elbo(x, x_recons, mean, log_var, beta=1.0) / x.size(0)
+        vanilla_loss = self.vae_module.model.negative_elbo(x, x_recons, mean, log_var, beta=1.0) / self.size_fn(x)
         critic_loss = critic_func(z, x, mean, log_var)
         return vanilla_loss + self.vae_module.lmbda * critic_loss
         
@@ -87,13 +88,13 @@ class Losses:
 
 
 class BetaVAEModule(pl.LightningModule):
-    def __init__(self, vae_model: VAEBase, loss: str, beta: float, learning_rate: float):
+    def __init__(self, vae_model: VAEBase, loss: str, beta: float, learning_rate: float, size_fn: callable = DEFAULT_SIZE_FN):
         super().__init__()
         #self.save_hyperparameters()
         self.model = vae_model
         self.learning_rate = learning_rate
         self.beta = beta    
-        self.loss_func = Losses(self, loss=loss)
+        self.loss_func = Losses(self, loss=loss, size_fn=size_fn)
         # fix this
         self.lmbda = self.beta 
         self.additional_monitoring_metric = {"train": {}, "test" : {}, "validation" : {}}

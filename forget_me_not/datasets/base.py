@@ -17,13 +17,19 @@ class DataModuleBase(ABC, LightningDataModule):
 
     def train_dataloader(self, batch_size: int = None):
         batch_size = batch_size if batch_size is not None else len(self.train_ds)
+        if hasattr(self, 'collate_fn'):
+            return DataLoader(self.train_ds, batch_size=batch_size, shuffle=True, collate_fn=self.collate_fn)
         return DataLoader(self.train_ds, batch_size=batch_size, shuffle=True)
     
     def test_dataloader(self, batch_size: int = None):
         batch_size = batch_size if batch_size is not None else len(self.test_ds)
+        if hasattr(self, 'collate_fn'):
+            return DataLoader(self.test_ds, batch_size=batch_size, shuffle=False, collate_fn=self.collate_fn)
         return DataLoader(self.test_ds, batch_size=batch_size, shuffle=False)
 
     def val_dataloader(self, batch_size: int = None):
         batch_size = batch_size if batch_size is not None else len(self.eval_ds)
+        if hasattr(self, 'collate_fn'):
+            return DataLoader(self.eval_ds, batch_size=batch_size, shuffle=False, collate_fn=self.collate_fn)
         return DataLoader(self.eval_ds, batch_size=batch_size, shuffle=False)
 

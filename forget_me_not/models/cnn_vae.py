@@ -1,5 +1,6 @@
 import logging
 from copy import deepcopy
+import itertools
 
 import torch
 from torch import nn
@@ -58,12 +59,18 @@ class CNNEncoder(nn.Module):
     def get_copy(self):
         copy_encoder = deepcopy(self)
         copy_encoder.shared_layers = self.shared_layers  # Share the shared_layers parameter
+        copy_encoder.reset_parameters()
         return copy_encoder
 
 
     @property
     def dtype(self):
         return self._dtype
+
+    def reset_parameters(self):
+        for layer in itertools.chain(self.shared_layers, self.layers):
+            if hasattr(layer, 'reset_parameters'):
+                layer.reset_parameters()
 
 
 

@@ -1,4 +1,5 @@
 import logging
+from operator import itemgetter
 
 from prdc import compute_prdc
 import torch
@@ -9,10 +10,10 @@ from forget_me_not.utils.misc import cliped_iter_dataloder
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
+DEFAULT_SIZE_FN = lambda x: x.size(0)
 
 
-
-def compute_negative_log_likelihood(vae_model, dataloader, dim, num_importance_sampling):
+def compute_negative_log_likelihood(vae_model, dataloader, num_importance_sampling, size_fn=DEFAULT_SIZE_FN):
     """
     Computes the negative log likelihood of the samples under the VAE model.
     Adapted from: https://github.com/ioangatop/srVAE/blob/dfee765c53f11f4653e7c6e7118a339832656867/src/modules/loss.py#L24
@@ -32,10 +33,11 @@ def compute_negative_log_likelihood(vae_model, dataloader, dim, num_importance_s
         elbo_samples = torch.tensor(elbo_samples)
         nll_batch = - ( torch.logsumexp(elbo_samples, dim=0) - np.log(num_importance_sampling) )
         nll_batches.append(nll_batch)
-        ds_size += x.size(0)
+        ds_size += size_fn(x)
     nll = torch.tensor(nll_batches).sum().item()/ds_size # negative log likelihood
-    bpd = nll / (dim * np.log(2.)) # bits per dimension
-    return bpd
+    # bpd = nll / (dim * np.log(2.)) # bits per dimension
+    # return bpd
+    return nll
 
 def compute_negative_log_likelihood_for_batch(vae_model, batch, *args, **kwargs):
     dataloader = [batch]
@@ -130,7 +132,6 @@ def mutual_information_for_batch(vae_model, batch, *args, **kwargs):
 
 def compute_density_and_coverage(vae_model, dataloader, nearest_k=5, num_samples=None):
     vae_model.eval()
-    samples = []
     all_latents = []
     latent_of_generated_samples = []
     for batch in cliped_iter_dataloder(dataloader, num_samples):
@@ -154,13 +155,13 @@ def compute_density_and_coverage_for_batch(vae_model, batch, *args, **kwargs):
 
 
 
-def compute_metrics(vae_model, test_data_loader, metric_and_its_params):
+def compute_metrics(vae_model, test_data_loader, metric_and_its_params, size_fn=DEFAULT_SIZE_FN):
     logging.info("Computing metrics")
     vae_model.eval()
     with torch.no_grad():
         res = {}
         if "negative_log_likelihood" in metric_and_its_params:
-            nll = compute_negative_log_likelihood(vae_model, test_data_loader, **metric_and_its_params["negative_log_likelihood"])
+            nll = compute_negative_log_likelihood(vae_model, test_data_loader, size_fn=size_fn, **metric_and_its_params["negative_log_likelihood"])
             res["Negative log likelihood"] = nll
             logging.info(f"Negative log likelihood: {nll}")
 
