@@ -5,22 +5,12 @@ from prdc import compute_prdc
 import torch
 import numpy as np
 
-from forget_me_not.utils.misc import cliped_iter_dataloder
+from forget_me_not.utils.misc import cliped_iter_dataloder, move_to_device
 
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
 DEFAULT_SIZE_FN = lambda x: x.size(0)
-
-def move_to_device(x, device):
-    if isinstance(x, torch.Tensor):
-        return x.to(device)
-    elif isinstance(x, dict):
-        return {k: move_to_device(v, device) for k, v in x.items()}
-    elif isinstance(x, list):
-        return [move_to_device(v, device) for v in x]
-    else:
-        raise NotImplementedError(f"Unknown type: {type(x)}")
     
 
 def compute_negative_log_likelihood(vae_model, dataloader, num_importance_sampling, size_fn=DEFAULT_SIZE_FN):
@@ -48,7 +38,7 @@ def compute_negative_log_likelihood(vae_model, dataloader, num_importance_sampli
     nll = torch.tensor(nll_batches).sum().item()/ds_size # negative log likelihood
     # bpd = nll / (dim * np.log(2.)) # bits per dimension
     # return bpd
-    return nll
+    return nll.item()
 
 def compute_negative_log_likelihood_for_batch(vae_model, batch, *args, **kwargs):
     dataloader = [batch]

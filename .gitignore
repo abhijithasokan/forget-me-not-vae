@@ -1,5 +1,7 @@
 # py-torch, lightening and tensoboard stuff
 */train_logs/*
+*/job_logs/*
+job_logs/*
 
 # data
 */dataset_store/*
@@ -10,7 +12,8 @@ ext/datasets/*
 *.DS_Store
 
 # reports
-*/reports/*
+*/reports*
+reports/*
 res_mv/*
 train_logs/*
 

@@ -3,13 +3,19 @@ import matplotlib.pyplot as plt
 import torch
 from sklearn.decomposition import PCA
 
+from forget_me_not.utils.misc import move_to_device
+ 
+
 def plot_latent_representation_2d(vae_model, samples, labels, report_dir: str = None):
     if report_dir is not None:
         os.makedirs(report_dir, exist_ok=True)
     vae_model.eval()
+    samples = move_to_device(samples, vae_model.device)
+
     with torch.no_grad():
         latent_rep = vae_model.get_latent_representation(samples, deterministic=False)
-        
+        latent_rep = latent_rep.cpu().numpy()
+    
     pca = PCA(n_components=2)
     reduced_rep = pca.fit_transform(latent_rep)
     
@@ -23,8 +29,10 @@ def plot_latent_representation_2d(vae_model, samples, labels, report_dir: str = 
 
 def plot_reconstruction_2d(vae_model, samples, labels, report_dir: str = None):
     vae_model.eval()
+    samples = move_to_device(samples, vae_model.device)
     with torch.no_grad():
         _, recon, *_ = vae_model.forward(samples, deterministic=False)
+        recon = recon.cpu().numpy()
         
     pca = PCA(n_components=2)
     reduced_rep = pca.fit_transform(recon)

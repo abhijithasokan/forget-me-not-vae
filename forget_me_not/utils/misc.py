@@ -35,3 +35,15 @@ def cliped_iter_dataloder(dataloader, num_samples: int = None):
             return
         remaining_samples -= len(x)
         yield batch
+
+
+
+def move_to_device(x, device):
+    if isinstance(x, torch.Tensor):
+        return x.to(device)
+    elif isinstance(x, dict):
+        return {k: move_to_device(v, device) for k, v in x.items()}
+    elif isinstance(x, list):
+        return [move_to_device(v, device) for v in x]
+    else:
+        raise NotImplementedError(f"Unknown type: {type(x)}")

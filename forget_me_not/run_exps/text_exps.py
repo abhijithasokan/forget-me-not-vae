@@ -22,7 +22,7 @@ class Config:
 
         # Training settings
         'LEARNING_RATE' : 0.05,
-        'BATCH_SIZE' : 32,
+        'BATCH_SIZE' : 64,
         'MAX_NUM_EPOCHS' : 30,
         'ACCELERATOR' : 'cpu',
         'EARLY_STOP' : True,
@@ -30,7 +30,7 @@ class Config:
 
         # Misc
         'REPORT_ROOT_DIR' : './reports',
-        'PBAR' : True,
+        'PBAR' : False,
 
         'ROOT_DS_DIR' : './ext/datasets/',
 
@@ -88,6 +88,12 @@ class ExperimentRunner:
     @staticmethod
     def size_func(x):
         return x['tokenised_text'].shape[0]
+    
+    @staticmethod
+    def size_by_words(x):
+        with torch.no_grad():
+            text_tensor = x['tokenised_text']
+            return torch.sum(text_tensor != 0)
 
 
     def setup_data_module(self):
@@ -96,7 +102,7 @@ class ExperimentRunner:
             dm = YahooDatasetModule(data_dir=os.path.join(self.config.ROOT_DS_DIR, 'yahoo_data'))
         elif self.config.dataset == 'yelp':
             from forget_me_not.datasets.text.yelp import YelpDatasetModule
-            dm = YelpDatasetModule(data_dir=os.path.join(self.config.ROOT_DS_DIR, 'yelp_data_dummy'))
+            dm = YelpDatasetModule(data_dir=os.path.join(self.config.ROOT_DS_DIR, 'yelp_data'))
 
         dm.setup('fit')
         dm.setup('test')
@@ -164,7 +170,7 @@ class ExperimentRunner:
 
 
     def add_monitoring_metrics(self, model, metric_and_its_params):
-        model.add_additional_monitoring_metric('validation', 'NLL', partial(metrics.compute_negative_log_likelihood_for_batch, size_fn = self.size_func, **metric_and_its_params['negative_log_likelihood']), timeit=True)
+        model.add_additional_monitoring_metric('validation', 'NLL', partial(metrics.compute_negative_log_likelihood_for_batch, size_fn = self.size_by_words, **metric_and_its_params['negative_log_likelihood']), timeit=True)
         model.add_additional_monitoring_metric('validation', 'AU', partial(metrics.active_units_for_batch, **metric_and_its_params['active_units']), timeit=True, agg_func=partial(torch.mean, dtype=torch.float32))
         model.add_additional_monitoring_metric('validation', 'MI', partial(metrics.mutual_information_for_batch, **metric_and_its_params['mutual_information']), timeit=True)
 
@@ -176,7 +182,7 @@ class ExperimentRunner:
             },
             "active_units" : {},
             "mutual_information" : {
-                'num_samples' : 3, #1000
+                'num_samples' : 1000,
             },
             # "density_and_coverage" : {
             #     'nearest_k' : 5
@@ -201,8 +207,10 @@ class ExperimentRunner:
 
     def report_metrics(self):
         import json
+        if torch.cuda.is_available():
+            model = self.model.model.cuda()
         test_data_loader = self.dm.test_dataloader(batch_size=self.config.BATCH_SIZE)
-        results = metrics.compute_metrics(self.model.model, test_data_loader, self.metric_and_its_params, size_fn=self.size_func)
+        results = metrics.compute_metrics(model, test_data_loader, self.metric_and_its_params, size_fn=self.size_by_words)
 
         with open(os.path.join(self.report_dir, 'metrics.json'), 'w') as f:
             json.dump(results, f, indent=4)
@@ -210,9 +218,11 @@ class ExperimentRunner:
 
     def dump_plots(self):
         from forget_me_not.plots import plot_latent_representation_2d
+        if torch.cuda.is_available():
+            model = self.model.model.cuda()
         test_data_loader = self.dm.test_dataloader(batch_size=None)
         data, labels = next(iter(test_data_loader))
-        plot_latent_representation_2d(self.model.model, data, labels, self.report_dir)
+        plot_latent_representation_2d(model, data, labels, self.report_dir)
 
 
 
