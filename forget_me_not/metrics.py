@@ -38,7 +38,7 @@ def compute_negative_log_likelihood(vae_model, dataloader, num_importance_sampli
     nll = torch.tensor(nll_batches).sum().item()/ds_size # negative log likelihood
     # bpd = nll / (dim * np.log(2.)) # bits per dimension
     # return bpd
-    return nll.item()
+    return nll
 
 def compute_negative_log_likelihood_for_batch(vae_model, batch, *args, **kwargs):
     dataloader = [batch]
@@ -70,7 +70,7 @@ def active_units_for_batch(vae_model, batch, *args, **kwargs):
 
 
 
-def mutual_information(vae_model, dataloader, num_samples):
+def mutual_information(vae_model, dataloader, num_samples, size_fn=DEFAULT_SIZE_FN):
     """
     Computes the mutual information between the latent variables and the data.
     Adapted from: https://github.com/jxhe/vae-lagging-encoder/blob/cdc4eb9d9599a026bf277db74efc2ba1ec203b15/modules/encoders/encoder.py#L111
@@ -82,7 +82,7 @@ def mutual_information(vae_model, dataloader, num_samples):
     """
     vae_model.eval()
     all_mu, all_logvar = [], []
-    for batch in cliped_iter_dataloder(dataloader, num_samples):
+    for batch in cliped_iter_dataloder(dataloader, num_samples, size_fn):
         x, _ = batch
         x = move_to_device(x, vae_model.device)
         with torch.no_grad():
@@ -133,11 +133,11 @@ def mutual_information_for_batch(vae_model, batch, *args, **kwargs):
 
 
 
-def compute_density_and_coverage(vae_model, dataloader, nearest_k=5, num_samples=None):
+def compute_density_and_coverage(vae_model, dataloader, nearest_k=5, num_samples=None, size_fn=DEFAULT_SIZE_FN):
     vae_model.eval()
     all_latents = []
     latent_of_generated_samples = []
-    for batch in cliped_iter_dataloder(dataloader, num_samples):
+    for batch in cliped_iter_dataloder(dataloader, num_samples, size_fn):
         x, _ = batch
         with torch.no_grad():
             latent_samples = vae_model.get_latent_representation(x)
@@ -174,12 +174,12 @@ def compute_metrics(vae_model, test_data_loader, metric_and_its_params, size_fn=
             logging.info(f"Active units: {au}")
 
         if "mutual_information" in metric_and_its_params:
-            mi = mutual_information(vae_model, test_data_loader, **metric_and_its_params["mutual_information"])
+            mi = mutual_information(vae_model, test_data_loader, size_fn=size_fn, **metric_and_its_params["mutual_information"])
             res["Mutual information"] = mi
             logging.info(f"Mutual information: {mi}")
 
         if "density_and_coverage" in metric_and_its_params:
-            dc = compute_density_and_coverage(vae_model, test_data_loader, **metric_and_its_params["density_and_coverage"])
+            dc = compute_density_and_coverage(vae_model, test_data_loader, size_fn=size_fn, **metric_and_its_params["density_and_coverage"])
             res["Density"] = dc["density"]
             res["Coverage"] = dc["coverage"]
             logging.info(f"Density: {dc['density']}")

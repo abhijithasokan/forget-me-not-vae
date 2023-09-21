@@ -45,13 +45,13 @@ class LSTMDecoder(nn.Module):
         vocab_mask[pad_token_id] = 0
         self.loss = nn.CrossEntropyLoss(weight=vocab_mask, reduce=False)
         
-        self.init_params()
+        #self.init_params()
 
 
     def init_params(self):
         # The init args used are are discussed in the Lagging VAE paper : Section B.2
         for param in self.lstm.parameters():
-            nn.init.uniform_(param, -0.01, -0.01) 
+            nn.init.uniform_(param, -0.01, 0.01) 
         nn.init.uniform_(self.embed.weight, -0.1, 0.1)
         
 

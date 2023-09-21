@@ -1,16 +1,19 @@
 import os
 from functools import partial
 from datetime import datetime
+import logging
 
 import torch
 
 from forget_me_not.models.encoders.lstm_encoder import LSTMEncoder
 from forget_me_not.models.decoders.lstm_decoder import LSTMDecoder
 from forget_me_not.models.lstm_vae import LSTMVAE, CriticNetworkForLSTMVAE
-from forget_me_not.training.train_beta_vae import BetaVAEModule, train
+from forget_me_not.training.train_beta_vae import BetaVAEModule
 from forget_me_not import metrics 
 
-
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.loggers import TensorBoardLogger
+import pytorch_lightning as pl
 
 
 class Config:
@@ -21,12 +24,14 @@ class Config:
         'LAMBDA' : 10.0,
 
         # Training settings
-        'LEARNING_RATE' : 0.05,
+        'LEARNING_RATE' : 0.005,
         'BATCH_SIZE' : 64,
         'MAX_NUM_EPOCHS' : 30,
         'ACCELERATOR' : 'cpu',
         'EARLY_STOP' : True,
         'ROOT_TRAIN_LOG_DIR' : './train_logs/text_exps',
+        'CLIP_GRAD_NORM' : 5.0,
+        'CHECK_VAL_EVERY_N_EPOCH' : 3,
 
         # Misc
         'REPORT_ROOT_DIR' : './reports',
@@ -79,10 +84,11 @@ class ExperimentRunner:
         self.setup_metrics()
         self.add_monitoring_metrics(self.model, self.metric_and_its_params)
         
+        self.setup_trainer()
         self.train()
     
         self.report_metrics()
-        self.dump_plots()
+        #self.dump_plots()
 
 
     @staticmethod
@@ -170,15 +176,15 @@ class ExperimentRunner:
 
 
     def add_monitoring_metrics(self, model, metric_and_its_params):
-        model.add_additional_monitoring_metric('validation', 'NLL', partial(metrics.compute_negative_log_likelihood_for_batch, size_fn = self.size_by_words, **metric_and_its_params['negative_log_likelihood']), timeit=True)
+        model.add_additional_monitoring_metric('validation', 'NLL', partial(metrics.compute_negative_log_likelihood_for_batch, size_fn = self.size_func, **metric_and_its_params['negative_log_likelihood']), timeit=True)
         model.add_additional_monitoring_metric('validation', 'AU', partial(metrics.active_units_for_batch, **metric_and_its_params['active_units']), timeit=True, agg_func=partial(torch.mean, dtype=torch.float32))
-        model.add_additional_monitoring_metric('validation', 'MI', partial(metrics.mutual_information_for_batch, **metric_and_its_params['mutual_information']), timeit=True)
+        model.add_additional_monitoring_metric('validation', 'MI', partial(metrics.mutual_information_for_batch, size_fn = self.size_func, **metric_and_its_params['mutual_information']), timeit=True)
 
 
     def setup_metrics(self):
         self.metric_and_its_params = {
             "negative_log_likelihood" : { 
-                'num_importance_sampling' : 5, #500
+                'num_importance_sampling' : 50, #500
             },
             "active_units" : {},
             "mutual_information" : {
@@ -195,22 +201,44 @@ class ExperimentRunner:
         self.config.dump_config(os.path.join(self.report_dir, 'config.json'))
 
 
-
     def train(self):
         val_data_loader = self.dm.val_dataloader(batch_size=self.config.BATCH_SIZE)
         train_data_loader = self.dm.train_dataloader(batch_size=self.config.BATCH_SIZE)
 
-        train(self.model, train_data_loader, val_data_loader, num_epochs=self.config.MAX_NUM_EPOCHS, 
-            accelerator=self.config.ACCELERATOR, enable_progress_bar=self.config.PBAR, early_stop=self.config.EARLY_STOP,
-            root_train_log_dir=self.config.ROOT_TRAIN_LOG_DIR, sub_dir=self.config.model_name)
+        self.trainer.fit(self.model, train_dataloaders=train_data_loader, val_dataloaders=val_data_loader)
+
+
+    def tune_lr(self):
+        val_data_loader = self.dm.val_dataloader(batch_size=self.config.BATCH_SIZE)
+        train_data_loader = self.dm.train_dataloader(batch_size=self.config.BATCH_SIZE)
+    
+        lr_find_kwargs = {'min_lr': 1e-06, 'max_lr': 1.0, 'early_stop_threshold': None, 'num_training' : 30 }
+        tuner = pl.tuner.Tuner(self.trainer)
+        tuner.lr_find(self.model, train_dataloaders=train_data_loader, val_dataloaders=val_data_loader, **lr_find_kwargs)
+
+
+    def setup_trainer(self):
+        logger = TensorBoardLogger(self.config.ROOT_TRAIN_LOG_DIR, self.config.model_name)
+
+        callbacks = []
+        if self.config.EARLY_STOP:    
+            early_stop_callback = EarlyStopping(monitor="val_loss", patience=5, mode="min")
+            callbacks.append(early_stop_callback)
+
+        self.trainer = pl.Trainer(accelerator=self.config.ACCELERATOR, max_epochs=self.config.MAX_NUM_EPOCHS, 
+            check_val_every_n_epoch=self.config.CHECK_VAL_EVERY_N_EPOCH, 
+            enable_progress_bar=self.config.PBAR, callbacks=callbacks, logger=logger, 
+            gradient_clip_val=self.config.CLIP_GRAD_NORM,
+        )
 
 
     def report_metrics(self):
         import json
+        model = self.model.model
         if torch.cuda.is_available():
-            model = self.model.model.cuda()
+            model = model.cuda()
         test_data_loader = self.dm.test_dataloader(batch_size=self.config.BATCH_SIZE)
-        results = metrics.compute_metrics(model, test_data_loader, self.metric_and_its_params, size_fn=self.size_by_words)
+        results = metrics.compute_metrics(model, test_data_loader, self.metric_and_its_params, size_fn=self.size_func)
 
         with open(os.path.join(self.report_dir, 'metrics.json'), 'w') as f:
             json.dump(results, f, indent=4)
@@ -218,9 +246,10 @@ class ExperimentRunner:
 
     def dump_plots(self):
         from forget_me_not.plots import plot_latent_representation_2d
+        model = self.model.model
         if torch.cuda.is_available():
-            model = self.model.model.cuda()
-        test_data_loader = self.dm.test_dataloader(batch_size=None)
+            model = model.cuda()
+        test_data_loader = self.dm.test_dataloader(batch_size=self.config.BATCH_SIZE)
         data, labels = next(iter(test_data_loader))
         plot_latent_representation_2d(model, data, labels, self.report_dir)
 

@@ -13,8 +13,9 @@ class DeterministicRandomness:
         torch.set_rng_state(self.rng_state)
 
 
+DEFAULT_SIZE_FN = lambda x: x.size(0)
 
-def cliped_iter_dataloder(dataloader, num_samples: int = None):
+def cliped_iter_dataloder(dataloader, num_samples: int = None, size_fn: callable = DEFAULT_SIZE_FN):
     """
     Clips the dataloader to num_samples
     """
@@ -25,15 +26,15 @@ def cliped_iter_dataloder(dataloader, num_samples: int = None):
     remaining_samples = num_samples
     for batch in dataloader:
         x, *rem = batch
-        if remaining_samples < len(x):
+        if remaining_samples < size_fn(x):
             if isinstance(x, torch.Tensor):
                 x = x[:remaining_samples]
             elif isinstance(x, dict):
                 x = {k: v[:remaining_samples] for k, v in x.items()}
-            batch = x, *[rr[:remaining_samples] for rr in rem]
+            batch = x, *[rr[:remaining_samples] if rr is not None else None for rr in rem ]
             yield batch
             return
-        remaining_samples -= len(x)
+        remaining_samples -= size_fn(x)
         yield batch
 
 
