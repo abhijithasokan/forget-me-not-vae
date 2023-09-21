@@ -12,6 +12,8 @@ if __name__ == '__main__':
     parser.add_argument("--report_root_dir", type=str, required=True)
     parser.add_argument("--max_epochs", type=int, required=True)
     parser.add_argument("--accelerator", type=str, required=True)
+    parser.add_argument("--checkpoint", type=str, required=False, default=None)
+    parser.add_argument("--only_eval", type=bool, required=False, default=False)
     
     args = parser.parse_args(sys.argv[1:])
 

@@ -68,8 +68,12 @@ class Config:
 
 
 class ExperimentRunner:
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, checkpoint_path=None, only_eval=True):
         self.config = config
+        self.checkpoint_path = checkpoint_path
+        self.only_eval = only_eval
+        if checkpoint_path is not None and (not only_eval):
+            raise ValueError("Resuming training from checkpoint is not supported yet.")
 
 
     def set_config_attr(self, attr, value):
@@ -82,10 +86,11 @@ class ExperimentRunner:
         self.setup_report_dir()
 
         self.setup_metrics()
-        self.add_monitoring_metrics(self.model, self.metric_and_its_params)
-        
-        self.setup_trainer()
-        self.train()
+
+        if not self.only_eval:
+            self.add_monitoring_metrics(self.model, self.metric_and_its_params)            
+            self.setup_trainer()
+            self.train()
     
         self.report_metrics()
         #self.dump_plots()
@@ -134,6 +139,9 @@ class ExperimentRunner:
             enc_dim = self.config.HIDDEN_DIM, 
             latent_dim = self.config.LATENT_DIM
         )
+
+        if self.checkpoint_path is not None:
+            return BetaVAEModule.load_from_checkpoint(self.checkpoint_path, vae_model)
 
         if self.config.model_name == 'beta-vae':
             loss = 'vanilla-beta-vae'
@@ -198,6 +206,7 @@ class ExperimentRunner:
     def setup_report_dir(self):
         self.report_dir = os.path.join(self.config.REPORT_ROOT_DIR, self.config.model_name, self.config.dataset, datetime.now().strftime('%y_%m_%d_%H_%M') )
         os.makedirs(self.report_dir, exist_ok=True)
+        self.train_log_sub_dir = f'{self.config.dataset}_{self.config.model_name}'
         self.config.dump_config(os.path.join(self.report_dir, 'config.json'))
 
 
@@ -206,6 +215,7 @@ class ExperimentRunner:
         train_data_loader = self.dm.train_dataloader(batch_size=self.config.BATCH_SIZE)
 
         self.trainer.fit(self.model, train_dataloaders=train_data_loader, val_dataloaders=val_data_loader)
+        self.trainer.save_checkpoint(os.path.join(self.logger.log_dir, f'{self.config.model_name}.ckpt'))
 
 
     def tune_lr(self):
@@ -218,7 +228,7 @@ class ExperimentRunner:
 
 
     def setup_trainer(self):
-        logger = TensorBoardLogger(self.config.ROOT_TRAIN_LOG_DIR, self.config.model_name)
+        self.logger = TensorBoardLogger(self.config.ROOT_TRAIN_LOG_DIR, self.train_log_sub_dir)
 
         callbacks = []
         if self.config.EARLY_STOP:    
@@ -227,7 +237,7 @@ class ExperimentRunner:
 
         self.trainer = pl.Trainer(accelerator=self.config.ACCELERATOR, max_epochs=self.config.MAX_NUM_EPOCHS, 
             check_val_every_n_epoch=self.config.CHECK_VAL_EVERY_N_EPOCH, 
-            enable_progress_bar=self.config.PBAR, callbacks=callbacks, logger=logger, 
+            enable_progress_bar=self.config.PBAR, callbacks=callbacks, logger=self.logger, 
             gradient_clip_val=self.config.CLIP_GRAD_NORM,
         )
 
@@ -264,7 +274,7 @@ def main(args):
     cfg.set('MAX_NUM_EPOCHS', args.max_epochs)
     cfg.set('ACCELERATOR', args.accelerator)
 
-    runner = ExperimentRunner(cfg)
+    runner = ExperimentRunner(cfg, checkpoint_path=args.checkpoint, only_eval=args.only_eval)   
     runner.run()
 
 

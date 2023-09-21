@@ -1,5 +1,6 @@
 import time
-from typing import Union
+from typing import IO, Any, Optional, Union
+from lightning_fabric.utilities.types import _MAP_LOCATION_TYPE, _PATH
 
 import numpy as np
 import torch
@@ -90,7 +91,7 @@ class Losses:
 class BetaVAEModule(pl.LightningModule):
     def __init__(self, vae_model: VAEBase, loss: str, beta: float, learning_rate: float, size_fn: callable = DEFAULT_SIZE_FN):
         super().__init__()
-        #self.save_hyperparameters()
+        self.save_hyperparameters(ignore=['vae_model'])
         self.model = vae_model
         self.learning_rate = learning_rate
         self.beta = beta    
@@ -98,6 +99,14 @@ class BetaVAEModule(pl.LightningModule):
         # fix this
         self.lmbda = self.beta 
         self.additional_monitoring_metric = {"train": {}, "test" : {}, "validation" : {}}
+
+    @classmethod
+    def load_from_checkpoint(cls, checkpoint_path, vae_model):
+        ckp = torch.load(checkpoint_path)
+        hyperparams = ckp['hyper_parameters']
+        model = cls(vae_model, **hyperparams)
+        model.load_state_dict(ckp['state_dict'])
+        return model
 
 
     def on_train_epoch_start(self):
