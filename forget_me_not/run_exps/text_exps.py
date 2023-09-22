@@ -102,16 +102,12 @@ class TextExperimentRunner(ExperimentRunner):
             latent_dim = self.config.LATENT_DIM
         )
 
-        if self.checkpoint_path is not None:
-            return BetaVAEModule.load_from_checkpoint(self.checkpoint_path, vae_model)
 
         if self.config.model_name == 'beta-vae':
             loss = 'vanilla-beta-vae'
-            return BetaVAEModule(vae_model, loss, beta=self.config.BETA, learning_rate=self.config.LEARNING_RATE, size_fn=self.size_func)
-
+            
         elif self.config.model_name == 'self-critic':
             loss = 'self-critic'
-            return BetaVAEModule(vae_model, loss, beta=self.config.LAMBDA, learning_rate=self.config.LEARNING_RATE, size_fn=self.size_func)
 
         elif self.config.model_name == 'nn-critic':
             critic_network = CriticNetworkForLSTMVAE(
@@ -124,10 +120,8 @@ class TextExperimentRunner(ExperimentRunner):
                 dtype=torch.float32
             )
             vae_model.add_nn_critic(critic_network)
-
             loss = 'nn-critic'
-            return BetaVAEModule(vae_model, loss, beta=self.config.LAMBDA, learning_rate=self.config.LEARNING_RATE, size_fn=self.size_func)
-
+            
         elif self.config.model_name == 'hybrid-critic':
             vae_model.add_hybrid_critic_with_embedding_sharing(
                 critic_text_enc_dim = self.config.CRITIC_ENC_DIM, 
@@ -136,12 +130,18 @@ class TextExperimentRunner(ExperimentRunner):
                 hidden_dim_x = self.config.HIDDEN_DIM_X,
                 hidden_dim_z = self.config.HIDDEN_DIM_Z,
             )
-
             loss = 'nn-critic'
-            return BetaVAEModule(vae_model, loss, beta=self.config.LAMBDA, learning_rate=self.config.LEARNING_RATE, size_fn=self.size_func)
-
+        
         else:
             raise ValueError(f"Unknown model: {self.config.model_name}")
+        
+        if self.checkpoint_path is not None:
+            return BetaVAEModule.load_from_checkpoint(self.checkpoint_path, vae_model)
+        
+        if self.config.model_name == 'beta-vae':
+            return BetaVAEModule(vae_model, loss, beta=self.config.BETA, learning_rate=self.config.LEARNING_RATE, size_fn=self.size_func)
+        else:
+            return BetaVAEModule(vae_model, loss, beta=self.config.LAMBDA, learning_rate=self.config.LEARNING_RATE, size_fn=self.size_func)
 
 
     def setup_metrics(self):
