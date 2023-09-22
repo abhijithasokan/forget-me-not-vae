@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
+from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence, pad_sequence
 
 from forget_me_not.datasets.text.text_ds_base import Vocab
 
@@ -114,6 +114,10 @@ class LSTMDecoder(nn.Module):
     def dtype(self):
         return self.lstm.weight_ih_l0.dtype
     
+    @property
+    def device(self):
+        return self.lstm.weight_ih_l0.device
+    
 
     # def reconstruct_error(self, x, z):
     #     '''
@@ -142,3 +146,50 @@ class LSTMDecoder(nn.Module):
     #     # (batch_size * n_sample * seq_len)
     #     loss = self.loss(output_logits.view(-1, output_logits.size(2)), tgt)
     #     return loss.view(batch_size, n_sample, -1).sum(-1)
+
+    def generate_from_latent(self, z, output_list_of_tokens = False, max_len = 100):
+        batch_size = z.size(0)
+        decoded_batch = [[] for _ in range(batch_size)]
+
+        c_init = self.latent_to_lstm_hidden(z).unsqueeze(0)
+        h_init = torch.tanh(c_init)
+
+        decoder_hidden = (h_init, c_init)
+        decoder_input = torch.tensor([Vocab.SOS_TOKEN_ID] * batch_size, dtype=torch.long, device=self.device).unsqueeze(1) # (batch_size, 1)
+        end_symbol = torch.tensor([Vocab.EOS_TOKEN_ID] * batch_size, dtype=torch.long, device=self.device)
+
+        mask = torch.ones((batch_size), dtype=torch.uint8, device=self.device)
+        length_c = 1
+        while mask.sum().item() != 0 and length_c < max_len:
+
+            # (batch_size, 1, ni) --> (batch_size, 1, ni+nz)
+            word_embed = self.embed(decoder_input)
+            word_embed = torch.cat((word_embed, z.unsqueeze(1)), dim=-1)
+
+            output, decoder_hidden = self.lstm(word_embed, decoder_hidden)
+
+            # (batch_size, 1, vocab_size) --> (batch_size, vocab_size)
+            decoder_output = self.prediction_layer(output)
+            output_logits = decoder_output.squeeze(1)
+
+            # (batch_size)
+            max_index = torch.argmax(output_logits, dim=1)
+
+            decoder_input = max_index.unsqueeze(1)
+            length_c += 1
+
+            for i in range(batch_size):
+                if mask[i].item():
+                    # decoded_batch[i].append(self.vocab.id2word(max_index[i].item()))
+                    decoded_batch[i].append(max_index[i].item())
+
+            mask = torch.mul((max_index != end_symbol), mask)
+
+        if output_list_of_tokens:
+            return decoded_batch
+
+        else:
+            tokenised_text = [torch.tensor(sentence, dtype=torch.long, device=self.device) for sentence in decoded_batch]
+            lengths = torch.tensor([len(tt) for tt in tokenised_text])
+            tokenised_text_padded = pad_sequence(tokenised_text, batch_first=True, padding_value=Vocab.PAD_TOKEN_ID)
+            return {'tokenised_text': tokenised_text_padded, 'lengths': lengths}

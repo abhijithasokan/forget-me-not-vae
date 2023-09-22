@@ -56,6 +56,13 @@ class LSTMVAE(VAEWithGaussianPrior):
         zh = self.fc_latent_to_hidden(z)
         reconstruction = self.lstm_decoder(zh, x)
         return z, reconstruction, mean, log_var
+    
+
+    def generate_sample_from_latent_prior(self, num_samples):
+        # when prior is a normal distribution with mean 0 and variance 1 
+        z = torch.randn(num_samples, self.latent_dim, dtype=self.dtype)
+        zh = self.fc_latent_to_hidden(z)
+        return self.lstm_decoder.generate_from_latent(zh)
 
 
     def add_hybrid_critic_with_embedding_sharing(self, critic_text_enc_dim, *args, **kwargs):

@@ -198,9 +198,9 @@ class ExperimentRunner:
             "mutual_information" : {
                 'num_samples' : 1000,
             },
-            # "density_and_coverage" : {
-            #     'nearest_k' : 5
-            # }
+            "density_and_coverage" : {
+                'nearest_k' : 5
+            }
         }
         
     def setup_report_dir(self):

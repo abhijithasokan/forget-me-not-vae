@@ -2,7 +2,7 @@ from typing import Iterable, Dict
 import itertools
 
 import torch
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
+from torch.nn.utils.rnn import pad_sequence
 
 from forget_me_not.datasets.base import DatasetBase, DataModuleBase
 
@@ -14,18 +14,18 @@ class Vocab:
     UNK_TOKEN = '<unk>'
     EOS_TOKEN = '</s>'
     SOS_TOKEN = '<s>'
-    PAD_TOKEN_ID = 0
     
     __SPECIAL_TOKENS = [PAD_TOKEN, UNK_TOKEN, SOS_TOKEN, EOS_TOKEN]
-    
+    PAD_TOKEN_ID, UNK_TOKEN_ID, SOS_TOKEN_ID, EOS_TOKEN_ID = range(len(__SPECIAL_TOKENS))
+
+
     def __init__(self):
         self.word2idx = {}
         self.idx2word = []
 
-        for token in self.__SPECIAL_TOKENS:
+        for tid, token in enumerate(self.__SPECIAL_TOKENS):
             self.add_word(token, skip_check=True)
-
-        assert Vocab.PAD_TOKEN_ID == self.word2idx[Vocab.PAD_TOKEN]
+            assert tid == self.word2idx[token]
 
 
     def add_word(self, word: str, skip_check: bool = False):

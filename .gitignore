@@ -14,6 +14,7 @@ ext/datasets/*
 # reports
 */reports*
 reports/*
+reports*
 res_mv/*
 train_logs/*
 
