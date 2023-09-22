@@ -140,14 +140,15 @@ def compute_density_and_coverage(vae_model, dataloader, nearest_k=5, num_samples
     for batch in cliped_iter_dataloder(dataloader, num_samples, size_fn):
         x, _ = batch
         with torch.no_grad():
+            x = move_to_device(x, vae_model.device)
             latent_samples = vae_model.get_latent_representation(x)
             all_latents.append(latent_samples)
             generated_samples = vae_model.generate_sample_from_latent_prior(latent_samples.size(0))
             latent_of_generated_samples.append(vae_model.get_latent_representation(generated_samples))
 
-    all_latents = torch.cat(all_latents, dim=0)
-    latent_of_generated_samples = torch.cat(latent_of_generated_samples, dim=0)
-    return compute_prdc(latent_samples, latent_of_generated_samples, nearest_k=nearest_k)
+    all_latents = torch.cat(all_latents, dim=0).cpu()
+    latent_of_generated_samples = torch.cat(latent_of_generated_samples, dim=0).cpu()
+    return compute_prdc(all_latents, latent_of_generated_samples, nearest_k=nearest_k)
 
 
 def compute_density_and_coverage_for_batch(vae_model, batch, *args, **kwargs):

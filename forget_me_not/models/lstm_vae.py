@@ -60,7 +60,7 @@ class LSTMVAE(VAEWithGaussianPrior):
 
     def generate_sample_from_latent_prior(self, num_samples):
         # when prior is a normal distribution with mean 0 and variance 1 
-        z = torch.randn(num_samples, self.latent_dim, dtype=self.dtype)
+        z = torch.randn(num_samples, self.latent_dim, dtype=self.dtype, device=self.device)
         zh = self.fc_latent_to_hidden(z)
         return self.lstm_decoder.generate_from_latent(zh)
 
