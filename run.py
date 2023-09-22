@@ -2,6 +2,7 @@ import sys
 import argparse
 
 from forget_me_not.run_exps import text_exps
+from forget_me_not.run_exps import img_exps
 
 
 if __name__ == '__main__':
@@ -19,6 +20,7 @@ if __name__ == '__main__':
 
     if args.exp == 'text':
         text_exps.main(args)
-
+    elif args.exp == 'img':
+        img_exps.main(args)
     else:
         raise ValueError(f"Unknown experiment: {args.exp}")

@@ -66,6 +66,10 @@ class CNNEncoder(nn.Module):
     @property
     def dtype(self):
         return self._dtype
+    
+    @property
+    def device(self):
+        return next(self.parameters()).device
 
     def reset_parameters(self):
         for layer in itertools.chain(self.shared_layers, self.layers):
@@ -103,6 +107,14 @@ class CNNDecoder(nn.Module):
          
     def forward(self, x):
         return self.layers(x)
+    
+    @property
+    def dtype(self):
+        return self.layers[0].weight.dtype
+    
+    @property
+    def device(self):
+        return next(self.parameters()).device
 
 
 
@@ -134,6 +146,9 @@ class CNNVAE(VAEWithGaussianPrior):
     def dtype(self):
         return self.encoder.dtype
 
+    @property
+    def device(self):
+        return self.encoder.device
 
     def add_hybrid_critic(self, num_shared_layer: int, contrast_dim: int, hidden_dim_x: int, hidden_dim_z: int):
         if hasattr(self, 'critic'):
