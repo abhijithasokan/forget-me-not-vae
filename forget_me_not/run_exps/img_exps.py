@@ -17,8 +17,8 @@ class ImgExpConfig(Config):
     DEFAULTS_CONFIGS = {
         'HIDDEN_DIM' : 512,
         'LATENT_DIM' : 32,
-        'BETA' : 10.0,
-        'LAMBDA' : 10.0,
+        'BETA' : 5.0,
+        'LAMBDA' : 5.0,
 
         # Training settings
         'LEARNING_RATE' : 0.0002,

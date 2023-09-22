@@ -122,13 +122,12 @@ class ExperimentRunner(ABC):
 
 
     def dump_plots(self):
-        from forget_me_not.plots import plot_latent_representation_2d
+        from forget_me_not.plots import plot_latent_representation_2d_with_batches
         model = self.model.model
         if torch.cuda.is_available():
             model = model.cuda()
         test_data_loader = self.dm.test_dataloader(batch_size=self.config.BATCH_SIZE)
-        data, labels = next(iter(test_data_loader))
-        plot_latent_representation_2d(model, data, labels, self.report_dir)
+        plot_latent_representation_2d_with_batches(model, test_data_loader, self.report_dir)
 
 
 
