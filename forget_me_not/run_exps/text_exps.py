@@ -1,23 +1,22 @@
 import os
-from functools import partial
-from datetime import datetime
-import logging
 
 import torch
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.loggers import TensorBoardLogger
+import pytorch_lightning as pl
 
 from forget_me_not.models.encoders.lstm_encoder import LSTMEncoder
 from forget_me_not.models.decoders.lstm_decoder import LSTMDecoder
 from forget_me_not.models.lstm_vae import LSTMVAE, CriticNetworkForLSTMVAE
 from forget_me_not.training.train_beta_vae import BetaVAEModule
 from forget_me_not import metrics 
-
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from pytorch_lightning.loggers import TensorBoardLogger
-import pytorch_lightning as pl
+from .exp_base import Config, ExperimentRunner
 
 
-class Config:
-    __DEFAULTS_CONFIGS = {
+
+
+class TextExpConfig(Config):
+    DEFAULTS_CONFIGS = {
         'HIDDEN_DIM' : 1024,
         'LATENT_DIM' : 32,
         'BETA' : 10.0,
@@ -48,53 +47,16 @@ class Config:
         'CONTRAST_DIM' : 128,
         'HIDDEN_DIM_X' : 256,
         'HIDDEN_DIM_Z' : 64,
+
+        'DUMP_PLOTS' : False,
     }
 
 
-    def __init__(self):
-        self.__dict__.update(self.__DEFAULTS_CONFIGS)
-        
-
-    def set(self, key, value):
-        self.__setattr__(key, value)
 
 
-    def dump_config(self, path):
-        import json
-        with open(path, 'w') as f:
-            json.dump(self.__dict__, f, indent=4)
-
-
-
-
-class ExperimentRunner:
-    def __init__(self, config: Config, checkpoint_path=None, only_eval=True):
-        self.config = config
-        self.checkpoint_path = checkpoint_path
-        self.only_eval = only_eval
-        if checkpoint_path is not None and (not only_eval):
-            raise ValueError("Resuming training from checkpoint is not supported yet.")
-
-
-    def set_config_attr(self, attr, value):
-        self.config.set(attr, value)
-
-
-    def run(self):
-        self.setup_data_module()
-        self.model = self.build_model()
-        self.setup_report_dir()
-
-        self.setup_metrics()
-
-        if not self.only_eval:
-            self.add_monitoring_metrics(self.model, self.metric_and_its_params)            
-            self.setup_trainer()
-            self.train()
-    
-        self.report_metrics()
-        #self.dump_plots()
-
+class TextExperimentRunner(ExperimentRunner):
+    def __init__(self, config: TextExpConfig, *args, **kwargs):
+        super(TextExperimentRunner, self).__init__(config, *args, **kwargs)
 
     @staticmethod
     def size_func(x):
@@ -182,13 +144,6 @@ class ExperimentRunner:
             raise ValueError(f"Unknown model: {self.config.model_name}")
 
 
-
-    def add_monitoring_metrics(self, model, metric_and_its_params):
-        model.add_additional_monitoring_metric('validation', 'NLL', partial(metrics.compute_negative_log_likelihood_for_batch, size_fn = self.size_func, **metric_and_its_params['negative_log_likelihood']), timeit=True)
-        model.add_additional_monitoring_metric('validation', 'AU', partial(metrics.active_units_for_batch, **metric_and_its_params['active_units']), timeit=True, agg_func=partial(torch.mean, dtype=torch.float32))
-        model.add_additional_monitoring_metric('validation', 'MI', partial(metrics.mutual_information_for_batch, size_fn = self.size_func, **metric_and_its_params['mutual_information']), timeit=True)
-
-
     def setup_metrics(self):
         self.metric_and_its_params = {
             "negative_log_likelihood" : { 
@@ -203,30 +158,7 @@ class ExperimentRunner:
             }
         }
         
-    def setup_report_dir(self):
-        self.report_dir = os.path.join(self.config.REPORT_ROOT_DIR, self.config.model_name, self.config.dataset, datetime.now().strftime('%y_%m_%d_%H_%M') )
-        os.makedirs(self.report_dir, exist_ok=True)
-        self.train_log_sub_dir = f'{self.config.dataset}_{self.config.model_name}'
-        self.config.dump_config(os.path.join(self.report_dir, 'config.json'))
-
-
-    def train(self):
-        val_data_loader = self.dm.val_dataloader(batch_size=self.config.BATCH_SIZE)
-        train_data_loader = self.dm.train_dataloader(batch_size=self.config.BATCH_SIZE)
-
-        self.trainer.fit(self.model, train_dataloaders=train_data_loader, val_dataloaders=val_data_loader)
-        self.trainer.save_checkpoint(os.path.join(self.logger.log_dir, f'{self.config.model_name}.ckpt'))
-
-
-    def tune_lr(self):
-        val_data_loader = self.dm.val_dataloader(batch_size=self.config.BATCH_SIZE)
-        train_data_loader = self.dm.train_dataloader(batch_size=self.config.BATCH_SIZE)
     
-        lr_find_kwargs = {'min_lr': 1e-06, 'max_lr': 1.0, 'early_stop_threshold': None, 'num_training' : 30 }
-        tuner = pl.tuner.Tuner(self.trainer)
-        tuner.lr_find(self.model, train_dataloaders=train_data_loader, val_dataloaders=val_data_loader, **lr_find_kwargs)
-
-
     def setup_trainer(self):
         self.logger = TensorBoardLogger(self.config.ROOT_TRAIN_LOG_DIR, self.train_log_sub_dir)
 
@@ -255,26 +187,20 @@ class ExperimentRunner:
 
 
     def dump_plots(self):
-        from forget_me_not.plots import plot_latent_representation_2d
-        model = self.model.model
-        if torch.cuda.is_available():
-            model = model.cuda()
-        test_data_loader = self.dm.test_dataloader(batch_size=self.config.BATCH_SIZE)
-        data, labels = next(iter(test_data_loader))
-        plot_latent_representation_2d(model, data, labels, self.report_dir)
+        raise NotImplementedError("Plots for text experiments are not implemented yet")
 
 
 
 
 def main(args):
-    cfg = Config()
+    cfg = TextExpConfig()
     cfg.set('model_name', args.model)
     cfg.set('dataset', args.dataset)
     cfg.set('REPORT_ROOT_DIR', args.report_root_dir)
     cfg.set('MAX_NUM_EPOCHS', args.max_epochs)
     cfg.set('ACCELERATOR', args.accelerator)
 
-    runner = ExperimentRunner(cfg, checkpoint_path=args.checkpoint, only_eval=args.only_eval)   
+    runner = TextExperimentRunner(cfg, checkpoint_path=args.checkpoint, only_eval=args.only_eval)   
     runner.run()
 
 
