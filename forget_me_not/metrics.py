@@ -93,6 +93,7 @@ def mutual_information(vae_model, dataloader, num_samples, size_fn=DEFAULT_SIZE_
     all_mu = torch.cat(all_mu, dim=0)
     all_logvar = torch.cat(all_logvar, dim=0)
     dim_z = all_mu.shape[1]
+    num_samples = all_mu.shape[0]
 
     # Compute the first term: E[log q(z|x)]
     # Since this is same as entropy, we can use the equation of entropy for a Gaussian distribution

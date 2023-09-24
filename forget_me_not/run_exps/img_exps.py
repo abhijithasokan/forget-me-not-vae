@@ -17,8 +17,8 @@ class ImgExpConfig(Config):
     DEFAULTS_CONFIGS = {
         'HIDDEN_DIM' : 512,
         'LATENT_DIM' : 32,
-        'BETA' : 5.0,
-        'LAMBDA' : 5.0,
+        'BETA' : 1.0,
+        'LAMBDA' : 20.0,
 
         # Training settings
         'LEARNING_RATE' : 0.0002,
@@ -119,11 +119,11 @@ class ImgExperimentRunner(ExperimentRunner):
     def setup_metrics(self):
         self.metric_and_its_params = {
             "negative_log_likelihood" : { 
-                'num_importance_sampling' : 2 # 50, #500
+                'num_importance_sampling' : 50, #500
             },
             "active_units" : {},
             "mutual_information" : {
-                'num_samples' : 5, #1000,
+                'num_samples' : 1000,
             },
             "density_and_coverage" : {
                 'nearest_k' : 5
@@ -155,7 +155,7 @@ def main(args):
     cfg.set('MAX_NUM_EPOCHS', args.max_epochs)
     cfg.set('ACCELERATOR', args.accelerator)
 
-    runner = ImgExperimentRunner(cfg, checkpoint_path=args.checkpoint, only_eval=args.only_eval)   
+    runner = ImgExperimentRunner(cfg, checkpoint_path=args.checkpoint, only_eval=args.only_eval, seed=args.seed) 
     runner.run()
 
 

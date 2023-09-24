@@ -19,7 +19,7 @@ class TextExpConfig(Config):
     DEFAULTS_CONFIGS = {
         'HIDDEN_DIM' : 1024,
         'LATENT_DIM' : 32,
-        'BETA' : 10.0,
+        'BETA' : 1.0,
         'LAMBDA' : 10.0,
 
         # Training settings
@@ -200,7 +200,7 @@ def main(args):
     cfg.set('MAX_NUM_EPOCHS', args.max_epochs)
     cfg.set('ACCELERATOR', args.accelerator)
 
-    runner = TextExperimentRunner(cfg, checkpoint_path=args.checkpoint, only_eval=args.only_eval)   
+    runner = TextExperimentRunner(cfg, checkpoint_path=args.checkpoint, only_eval=args.only_eval, seed=args.seed)  
     runner.run()
 
 

@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 
 import torch
 import pytorch_lightning as pl
+from pytorch_lightning import seed_everything
 
 from forget_me_not import metrics 
 
@@ -27,12 +28,14 @@ class Config(ABC):
 
 
 class ExperimentRunner(ABC):
-    def __init__(self, config: Config, checkpoint_path=None, only_eval=True):
+    def __init__(self, config: Config, checkpoint_path=None, only_eval=True, seed: int = 0):
         self.config = config
         self.checkpoint_path = checkpoint_path
         self.only_eval = only_eval
         if checkpoint_path is not None and (not only_eval):
             raise ValueError("Resuming training from checkpoint is not supported yet.")
+        self.seed = seed
+        seed_everything(seed)
 
 
     @staticmethod
@@ -73,9 +76,11 @@ class ExperimentRunner(ABC):
             self.setup_trainer()
             self.train()
     
+        seed_everything(self.seed)
         self.report_metrics()
         
         if self.config.DUMP_PLOTS:
+            seed_everything(self.seed)
             self.dump_plots()
     
 
