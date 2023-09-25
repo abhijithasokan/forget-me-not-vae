@@ -66,6 +66,7 @@ class ExperimentRunner(ABC):
 
     def run(self):
         self.setup_data_module()
+        seed_everything(self.seed)
         self.model = self.build_model()
         self.setup_report_dir()
 
@@ -74,6 +75,7 @@ class ExperimentRunner(ABC):
         if not self.only_eval:
             self.add_monitoring_metrics(self.model, self.metric_and_its_params)            
             self.setup_trainer()
+            seed_everything(self.seed)
             self.train()
     
         seed_everything(self.seed)
@@ -120,7 +122,7 @@ class ExperimentRunner(ABC):
         if torch.cuda.is_available():
             model = model.cuda()
         test_data_loader = self.dm.test_dataloader(batch_size=self.config.BATCH_SIZE)
-        results = metrics.compute_metrics(model, test_data_loader, self.metric_and_its_params, size_fn=self.size_func)
+        results = metrics.compute_metrics(model, test_data_loader, self.metric_and_its_params, seed = self.seed, size_fn=self.size_func)
 
         with open(os.path.join(self.report_dir, 'metrics.json'), 'w') as f:
             json.dump(results, f, indent=4)

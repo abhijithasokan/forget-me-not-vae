@@ -151,7 +151,7 @@ class TextExperimentRunner(ExperimentRunner):
             },
             "active_units" : {},
             "mutual_information" : {
-                'num_samples' : 1000,
+                'num_samples' : None,
             },
             "density_and_coverage" : {
                 'nearest_k' : 5
@@ -172,18 +172,6 @@ class TextExperimentRunner(ExperimentRunner):
             enable_progress_bar=self.config.PBAR, callbacks=callbacks, logger=self.logger, 
             gradient_clip_val=self.config.CLIP_GRAD_NORM,
         )
-
-
-    def report_metrics(self):
-        import json
-        model = self.model.model
-        if torch.cuda.is_available():
-            model = model.cuda()
-        test_data_loader = self.dm.test_dataloader(batch_size=self.config.BATCH_SIZE)
-        results = metrics.compute_metrics(model, test_data_loader, self.metric_and_its_params, size_fn=self.size_func)
-
-        with open(os.path.join(self.report_dir, 'metrics.json'), 'w') as f:
-            json.dump(results, f, indent=4)
 
 
     def dump_plots(self):

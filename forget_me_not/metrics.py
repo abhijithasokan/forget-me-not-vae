@@ -3,6 +3,7 @@ from operator import itemgetter
 
 from prdc import compute_prdc
 import torch
+from pytorch_lightning import seed_everything
 import numpy as np
 
 from forget_me_not.utils.misc import cliped_iter_dataloder, move_to_device
@@ -70,7 +71,7 @@ def active_units_for_batch(vae_model, batch, *args, **kwargs):
 
 
 
-def mutual_information(vae_model, dataloader, num_samples, size_fn=DEFAULT_SIZE_FN):
+def mutual_information_fixed_num_samples(vae_model, dataloader, num_samples, size_fn=DEFAULT_SIZE_FN):
     """
     Computes the mutual information between the latent variables and the data.
     Adapted from: https://github.com/jxhe/vae-lagging-encoder/blob/cdc4eb9d9599a026bf277db74efc2ba1ec203b15/modules/encoders/encoder.py#L111
@@ -92,6 +93,8 @@ def mutual_information(vae_model, dataloader, num_samples, size_fn=DEFAULT_SIZE_
 
     all_mu = torch.cat(all_mu, dim=0)
     all_logvar = torch.cat(all_logvar, dim=0)
+
+def mutual_information_helper(vae_model, all_mu, all_logvar):
     dim_z = all_mu.shape[1]
     num_samples = all_mu.shape[0]
 
@@ -131,6 +134,22 @@ def mutual_information_for_batch(vae_model, batch, *args, **kwargs):
     dataloader = [batch]
     return mutual_information(vae_model, dataloader, *args, **kwargs)
 
+def mutual_information(vae_model, dataloader, size_fn=DEFAULT_SIZE_FN, **kwargs):
+    vae_model.eval()
+    num_samples = 0
+    mutual_information = 0
+    for batch in dataloader:
+        x, _ = batch
+        x = move_to_device(x, vae_model.device)
+        with torch.no_grad():
+            _, _, mean, log_var = vae_model.forward(x)
+
+        mi = mutual_information_helper(vae_model, mean, log_var)
+        mutual_information += mi * size_fn(x)
+        num_samples += size_fn(x)
+    
+    mutual_information /= num_samples
+    return mutual_information
 
 
 
@@ -160,27 +179,31 @@ def compute_density_and_coverage_for_batch(vae_model, batch, *args, **kwargs):
 
 
 
-def compute_metrics(vae_model, test_data_loader, metric_and_its_params, size_fn=DEFAULT_SIZE_FN):
+def compute_metrics(vae_model, test_data_loader, metric_and_its_params, seed: int, size_fn=DEFAULT_SIZE_FN):
     logging.info("Computing metrics")
     vae_model.eval()
     with torch.no_grad():
         res = {}
         if "negative_log_likelihood" in metric_and_its_params:
+            seed_everything(seed)
             nll = compute_negative_log_likelihood(vae_model, test_data_loader, size_fn=size_fn, **metric_and_its_params["negative_log_likelihood"])
             res["Negative log likelihood"] = nll
             logging.info(f"Negative log likelihood: {nll}")
 
         if "active_units" in metric_and_its_params:
+            seed_everything(seed)
             au = active_units(vae_model, test_data_loader)
             res["Active units"] =  au
             logging.info(f"Active units: {au}")
 
         if "mutual_information" in metric_and_its_params:
+            seed_everything(seed)
             mi = mutual_information(vae_model, test_data_loader, size_fn=size_fn, **metric_and_its_params["mutual_information"])
             res["Mutual information"] = mi
             logging.info(f"Mutual information: {mi}")
 
         if "density_and_coverage" in metric_and_its_params:
+            seed_everything(seed)
             dc = compute_density_and_coverage(vae_model, test_data_loader, size_fn=size_fn, **metric_and_its_params["density_and_coverage"])
             res["Density"] = dc["density"]
             res["Coverage"] = dc["coverage"]

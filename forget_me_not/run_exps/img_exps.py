@@ -22,7 +22,7 @@ class ImgExpConfig(Config):
 
         # Training settings
         'LEARNING_RATE' : 0.0002,
-        'BATCH_SIZE' : 1024,
+        'BATCH_SIZE' : 50, #1024, # 50 is the batch size used in the paper
         'MAX_NUM_EPOCHS' : 30,
         'ACCELERATOR' : 'cpu',
         'EARLY_STOP' : True,
@@ -123,7 +123,7 @@ class ImgExperimentRunner(ExperimentRunner):
             },
             "active_units" : {},
             "mutual_information" : {
-                'num_samples' : 1000,
+                'num_samples' : None,
             },
             "density_and_coverage" : {
                 'nearest_k' : 5

@@ -38,7 +38,7 @@ class OmniglotDataModule(DataModuleBase):
         tf = train_fraction * (1 - eval_fraction)
         ef = train_fraction * eval_fraction
         with DeterministicRandomness(0):    
-            self.train_ds, self.eval_ds, self.test_ds = random_split(self.ds, [tf, ef, 1 - train_fraction])
+            self.train_ds, self.eval_ds, self.test_ds = random_split(self.ds, [tf, ef, 1 - train_fraction], generator=torch.Generator().manual_seed(0))
         
     def setup(self, stage: str) -> None:
         if stage == 'fit':
