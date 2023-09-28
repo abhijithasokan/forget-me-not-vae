@@ -3,6 +3,7 @@ import argparse
 
 from forget_me_not.run_exps import text_exps
 from forget_me_not.run_exps import img_exps
+from forget_me_not.run_exps import toy_exps
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -22,5 +23,7 @@ if __name__ == '__main__':
         text_exps.main(args)
     elif args.exp == 'img':
         img_exps.main(args)
+    elif args.exp == 'toy':
+        toy_exps.main(args)
     else:
         raise ValueError(f"Unknown experiment: {args.exp}")

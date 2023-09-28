@@ -35,6 +35,10 @@ class VAE(VAEWithGaussianPrior):
     def dtype(self):
         return self._dtype
     
+    @property
+    def device(self):
+        return next(self.parameters()).device
+    
 
     
     
