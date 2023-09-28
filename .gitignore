@@ -10,6 +10,7 @@ ext/datasets/*
 *.mat
 *.pdf
 *.DS_Store
+goldens/*
 
 # reports
 */reports*

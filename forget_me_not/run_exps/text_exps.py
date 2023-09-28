@@ -20,7 +20,7 @@ class TextExpConfig(Config):
         'HIDDEN_DIM' : 1024,
         'LATENT_DIM' : 32,
         'BETA' : 1.0,
-        'LAMBDA' : 10.0,
+        'LAMBDA' : 40.0,
 
         # Training settings
         'LEARNING_RATE' : 0.005,
@@ -41,7 +41,7 @@ class TextExpConfig(Config):
         'EMBEDDING_DIM' : 256,
 
         'CRITIC_ENC_DIM' : 1024,
-        'CRITIC_EMBEDDING_DIM' : 128,
+        'CRITIC_EMBEDDING_DIM' : 256,
 
 
         'CONTRAST_DIM' : 128,
